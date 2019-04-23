@@ -123,7 +123,7 @@ int KLFitter::ResolutionBase::ReadParameters(const char * filename, std::size_t 
 
   if (fParameters.size() != nparameters){
     std::cout << "KLFitter::ResolutionBase::ReadParameters(). Expecting " << nparameters
-      << ", parameters for Transfer fuctions but " << fParameters.size() << " parameters found" << std::endl;
+      << ", parameters for Transfer fuctions but " << fParameters.size() << " parameters found" << " in: " << filename << std::endl;
     return 0;
   }
 

@@ -33,6 +33,11 @@
 
 # Build folder
 build
+cmake-build-debug
 
 # ROOT files (unless added deliberately)
 *.root
+
+data/transferfunctions/atlasmc12a/
+.gitignore
+.idea

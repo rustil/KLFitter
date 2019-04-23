@@ -62,7 +62,7 @@ set( CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib )
 list( INSERT CMAKE_MODULE_PATH 0 ${CMAKE_SOURCE_DIR}/cmake )
 
 # Add ROOT system directory and require ROOT.
-find_package( ROOT 5.34.10 REQUIRED MathCore Minuit )
+find_package( ROOT COMPONENTS TreePlayer)
 
 # Figure out what to do with BAT.
 set( _buildDir ${CMAKE_CURRENT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/BATBuild )
@@ -101,6 +101,7 @@ set( lib_headers
   include/KLFitter/DetectorBase.h
   include/KLFitter/Fitter.h
   include/KLFitter/LikelihoodBase.h
+  include/KLFitter/LikelihoodFourTopLeptonJets.h
   include/KLFitter/LikelihoodSgTopWtLJ.h
   include/KLFitter/LikelihoodTTHLeptonJets.h
   include/KLFitter/LikelihoodTTZTrilepton.h
@@ -125,6 +126,7 @@ set( lib_sources
   src/DetectorBase.cxx
   src/Fitter.cxx
   src/LikelihoodBase.cxx
+  src/LikelihoodFourTopLeptonJets.cxx
   src/LikelihoodSgTopWtLJ.cxx
   src/LikelihoodTTHLeptonJets.cxx
   src/LikelihoodTTZTrilepton.cxx
@@ -232,3 +234,13 @@ install( EXPORT KLFitterTargets
    FILE KLFitterConfig-targets.cmake
    DESTINATION cmake
    NAMESPACE "KLFitter::" )
+
+KLFitter_add_executable( kltest util/kltest.cxx)
+target_link_libraries( kltest ${ROOT_LIBRARIES})
+target_include_directories( kltest PUBLIC ${ROOT_INCLUDE_DIRS})
+
+KLFitter_add_executable( kltest_4top util/kltest_4top.cxx)
+target_link_libraries( kltest_4top ${ROOT_LIBRARIES})
+target_include_directories( kltest_4top PUBLIC ${ROOT_INCLUDE_DIRS})
+
+message ( ${ROOT_LIBRARIES})
