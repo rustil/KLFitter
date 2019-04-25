@@ -22,6 +22,7 @@
 
 #include <memory>
 #include <vector>
+#include "CustomPermutations.h"
 
 // ---------------------------------------------------------
 
@@ -78,6 +79,7 @@ class Fitter final {
     * @return A pointer to the permutation object.
     **/
   KLFitter::Permutations * Permutations() { return fPermutations.get(); }
+  KLFitter::CustomPermutations * CustomPermutations() { return fCustomPermutations.get(); }
 
   /**
     * Return the lieklihood .
@@ -254,6 +256,7 @@ class Fitter final {
     * A pointer to the permutation object.
     */
   std::unique_ptr<KLFitter::Permutations> fPermutations;
+  std::unique_ptr<KLFitter::CustomPermutations> fCustomPermutations;
 
   /**
     * The TMinuit status

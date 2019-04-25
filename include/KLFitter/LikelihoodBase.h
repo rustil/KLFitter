@@ -28,6 +28,7 @@
 #include "BAT/BCModel.h"
 #include "KLFitter/Particles.h"
 #include "KLFitter/PhysicsConstants.h"
+#include "KLFitter/CustomPermutations.h"
 
 // ---------------------------------------------------------
 
@@ -58,6 +59,11 @@ class LikelihoodBase : public BCModel {
     kWorkingPoint,
     kVetoLight,
     kVetoBoth
+  };
+
+  enum PermMethod {
+      kPermutations,
+      kCustomPermutations
   };
 
   /** \name Constructors and destructors */
@@ -179,6 +185,7 @@ class LikelihoodBase : public BCModel {
     * @return An error flag.
     */
   int SetPermutations(std::unique_ptr<KLFitter::Permutations>* permutations);
+  int SetCustomPermutations(std::unique_ptr<KLFitter::CustomPermutations>* customPermutations);
 
   /**
     * Set the range of a model parameter.
@@ -550,7 +557,19 @@ class LikelihoodBase : public BCModel {
     */
   std::vector<double>  fCachedNormalizationVector;
 
- private:
+  PermMethod fPermMethod = kPermutations;
+
+public:
+    PermMethod getFPermMethod() const {
+        return fPermMethod;
+    }
+
+    void setFPermMethod(PermMethod fPermMethod) {
+        LikelihoodBase::fPermMethod = fPermMethod;
+    }
+
+
+private:
 };
 }  // namespace KLFitter
 

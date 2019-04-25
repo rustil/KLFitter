@@ -114,7 +114,9 @@ set( lib_headers
   include/KLFitter/LikelihoodTwoTracks.h
   include/KLFitter/Particles.h
   include/KLFitter/Permutations.h
-  include/KLFitter/PhysicsConstants.h )
+  include/KLFitter/CustomPermutations.h
+  include/KLFitter/PhysicsConstants.h
+  include/NLohmann/json.hpp)
 
 # Source files for the shared/static library.
 set( lib_sources
@@ -139,6 +141,7 @@ set( lib_sources
   src/LikelihoodTwoTracks.cxx
   src/Particles.cxx
   src/Permutations.cxx
+  src/CustomPermutations.cxx
   src/PhysicsConstants.cxx
   src/ResCrystalBallBase.cxx
   src/ResCrystalBallJets.cxx

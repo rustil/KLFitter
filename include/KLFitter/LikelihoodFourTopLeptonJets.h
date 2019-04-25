@@ -36,7 +36,8 @@ namespace KLFitter {
         /* @} */
 
         /// Enumerator for the lepton type.
-        enum LeptonType { kElectron,  ///< Leptons of type electron
+        enum LeptonType {
+            kElectron,  ///< Leptons of type electron
             kMuon       ///< Leptons of type muon
         };
 
@@ -119,7 +120,7 @@ namespace KLFitter {
          * @param parameters A vector of parameters (double values).
          * @return The logarithm of the prior probability.
          */
-        double LogLikelihood(const std::vector <double> & parameters) override;
+        double LogLikelihood(const std::vector<double> &parameters) override;
 
         /**
          * The posterior probability definition, overloaded from BCModel. Instead of
@@ -148,7 +149,7 @@ namespace KLFitter {
          *   17) BW_Thad 3 \n
          *   18) BW_Tlep
          */
-        std::vector<double> LogLikelihoodComponents(std::vector <double> parameters) override;
+        std::vector<double> LogLikelihoodComponents(std::vector<double> parameters) override;
 
         /* @} */
         /** \name Member functions (misc)  */
@@ -196,7 +197,7 @@ namespace KLFitter {
          * calculation.
          * @return An error flag.
          */
-        int CalculateLorentzVectors(std::vector <double> const& parameters) override;
+        int CalculateLorentzVectors(std::vector<double> const &parameters) override;
 
         /**
          * Calculates the neutrino pz solutions from the measured values and the W
@@ -207,7 +208,7 @@ namespace KLFitter {
          * added to the charged lepton in the calculation.
          * @return A vector with 0, 1 or 2 neutrino pz solutions.
          */
-        std::vector<double> CalculateNeutrinoPzSolutions(TLorentzVector* additionalParticle = nullptr);
+        std::vector<double> CalculateNeutrinoPzSolutions(TLorentzVector *additionalParticle = nullptr);
 
         /**
          * Define the model particles. Create the object #fParticlesModel and add all
@@ -270,28 +271,28 @@ namespace KLFitter {
         LeptonType m_lepton_type;
 
         /// Pointer to resolution function for hadronic b quark.
-        ResolutionBase* m_res_energy_bhad1;
-        ResolutionBase* m_res_energy_bhad2;
-        ResolutionBase* m_res_energy_bhad3;
+        ResolutionBase *m_res_energy_bhad1;
+        ResolutionBase *m_res_energy_bhad2;
+        ResolutionBase *m_res_energy_bhad3;
 
         /// Pointer to resolution function for leptonic b quark.
-        ResolutionBase* m_res_energy_blep;
+        ResolutionBase *m_res_energy_blep;
 
         /// Pointer to resolution function for first light quark jet.
-        ResolutionBase* m_res_energy_lq1;
+        ResolutionBase *m_res_energy_lq1;
 
         /// Pointer to resolution function for second light quark jet.
-        ResolutionBase* m_res_energy_lq2;
-        ResolutionBase* m_res_energy_lq3;
-        ResolutionBase* m_res_energy_lq4;
-        ResolutionBase* m_res_energy_lq5;
-        ResolutionBase* m_res_energy_lq6;
+        ResolutionBase *m_res_energy_lq2;
+        ResolutionBase *m_res_energy_lq3;
+        ResolutionBase *m_res_energy_lq4;
+        ResolutionBase *m_res_energy_lq5;
+        ResolutionBase *m_res_energy_lq6;
 
         /// Pointer to resolution function for the lepton.
-        ResolutionBase* m_res_lepton;
+        ResolutionBase *m_res_lepton;
 
         /// Pointer to resolution function for MET.
-        ResolutionBase* m_res_met;
+        ResolutionBase *m_res_met;
 
         /* @} */
         /** \name Member attributes (measured parameters) */
@@ -396,7 +397,7 @@ namespace KLFitter {
         double m_lq6_meas_px;
         double m_lq6_meas_py;
         double m_lq6_meas_pz;
-        
+
         double m_lep_meas_e;
         double m_lep_meas_deteta;
         double m_lep_meas_sintheta;
@@ -423,7 +424,7 @@ namespace KLFitter {
         double m_bhad3_fit_px;
         double m_bhad3_fit_py;
         double m_bhad3_fit_pz;
-        
+
         double m_blep_fit_e;
         double m_blep_fit_px;
         double m_blep_fit_py;

@@ -254,8 +254,9 @@ int LikelihoodTopLeptonJets::RemoveInvariantParticlePermutations() {
   // remove the permutation from the second and the third jet
   Particles::ParticleType ptype = Particles::kParton;
   std::vector<int> indexVector_Jets;
-  indexVector_Jets.push_back(2);
-  indexVector_Jets.push_back(3);
+  for (int i =4; i<=9;i++){
+      indexVector_Jets.push_back(i);
+  }
   err *= (*fPermutations)->InvariantParticlePermutations(ptype, indexVector_Jets);
 
   // remove invariant jet permutations of all jets not considered
@@ -265,6 +266,9 @@ int LikelihoodTopLeptonJets::RemoveInvariantParticlePermutations() {
     indexVector_Jets.push_back(iPartons);
   }
   err *= (*fPermutations)->InvariantParticlePermutations(ptype, indexVector_Jets);
+
+
+
 
   // remove the permutation from the other lepton
   if (m_lepton_type == kElectron) {
