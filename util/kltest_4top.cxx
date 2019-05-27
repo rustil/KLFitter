@@ -10,6 +10,8 @@
 #include "KLFitter/LikelihoodFourTopLeptonJets.h"
 #include "KLFitter/Permutations.h"
 #include "KLFitter/PhysicsConstants.h"
+#include <TString.h>
+#include <TChain.h>
 
 // ROOT includes
 #include "TFile.h"
@@ -42,12 +44,30 @@ int test() {
         return 1;
     }
 
+    auto chain = new TChain("nominal_Loose");
+    std::vector<std::string> fileNames = {
+            "/home/lennart/Data/klftest/wTruth/user.lrustige.412043.aMcAtNloPythia8EvtGen.DAOD_TOPQ1.e7101_a875_r10724_p3629.SM4t-212560_mc16e_KLFitter_v1_output_root/user.lrustige.18026714._000002.output.root",
+            "/home/lennart/Data/klftest/wTruth/user.lrustige.412043.aMcAtNloPythia8EvtGen.DAOD_TOPQ1.e7101_a875_r10724_p3629.SM4t-212560_mc16e_KLFitter_v1_output_root/user.lrustige.18026714._000001.output.root",
+            "/home/lennart/Data/klftest/wTruth/user.lrustige.412043.aMcAtNloPythia8EvtGen.DAOD_TOPQ1.e7101_a875_r10724_p3629.SM4t-212560_mc16e_KLFitter_v1_output_root/user.lrustige.18026714._000004.output.root",
+            "/home/lennart/Data/klftest/wTruth/user.lrustige.412043.aMcAtNloPythia8EvtGen.DAOD_TOPQ1.e7101_a875_r10724_p3629.SM4t-212560_mc16e_KLFitter_v1_output_root/user.lrustige.18026714._000006.output.root",
+            "/home/lennart/Data/klftest/wTruth/user.lrustige.412043.aMcAtNloPythia8EvtGen.DAOD_TOPQ1.e7101_a875_r10724_p3629.SM4t-212560_mc16e_KLFitter_v1_output_root/user.lrustige.18026714._000005.output.root",
+            "/home/lennart/Data/klftest/wTruth/user.lrustige.412043.aMcAtNloPythia8EvtGen.DAOD_TOPQ1.e7101_a875_r10724_p3629.SM4t-212560_mc16e_KLFitter_v1_output_root/user.lrustige.18026714._000003.output.root"
+    };
+
+    for (auto fn : fileNames) chain->AddFile(fn.c_str());
+
     // auto inFile = TFile::Open("/home/lennart/Data/klftest/SM4t-212560/SSML/mc16e/inclusive/ttbar_nonAllHad.root",
     // "READ");
-    auto inFile =
-            TFile::Open("/home/lennart/Data/klftest/SM4t-212560/1LOS/mc16d/1los_4top/4topNLO.root", "READ");
+//    auto inFile =
+//            TFile::Open("/home/lennart/Data/klftest/SM4t-212560/1LOS/mc16d/1los_4top/4topNLO.root", "READ");
 
-    TTreeReader reader("nominal_Loose", inFile);
+
+//auto inFile =
+//            TFile::Open("/home/lennart/Data/klftest/wTruth/user.lrustige.412043.aMcAtNloPythia8EvtGen.DAOD_TOPQ1.e7101_a875_r10724_p3629.SM4t-212560_mc16e_KLFitter_v1_output_root/user.lrustige.18026714._000001.output.root", "READ");
+
+
+    TTreeReader reader(chain);
+//    TTreeReader reader("nominal_Loose", inFile);
 
     TTreeReaderValue<std::vector<float>> jet_pt(reader, "jet_pt");
     TTreeReaderValue<std::vector<float>> jet_eta(reader, "jet_eta");
@@ -71,9 +91,12 @@ int test() {
     TTreeReaderValue<float> met_met(reader, "met_met");
     TTreeReaderValue<float> met_phi(reader, "met_phi");
 
+    TTreeReaderValue<std::vector<int>> jet_parentghost_pdgId(reader, "jet_parentghost_pdgId");
+    TTreeReaderValue<std::vector<char>> jet_isbtagged_MV2c10_77(reader, "jet_isbtagged_MV2c10_77");
+
 
     //TODO:!
-    unsigned int nEventsMax = 1000;
+    unsigned int nEventsMax = 100;
     unsigned int eventInd = 0;
 
     /* Out section */
@@ -275,11 +298,24 @@ int test() {
 
     
     while (reader.Next()) {
+        KLFitter::Particles particles{};
+
         unsigned int nLep = mu_pt->size() + el_pt->size();
         if (eventInd >= nEventsMax) break;
-        else if (nLep == 0 || nLep > 1 || jet_pt->size() != 10 || std::count_if(jet_mv2c10->begin(), jet_mv2c10->end(), [](float x){return x > 0.64;}) != 4) continue;
+        else if (nLep != 1 || jet_pt->size() != 10 || std::count_if(jet_isbtagged_MV2c10_77->begin(), jet_isbtagged_MV2c10_77->end(), [](char flag) {return flag;}) != 4) continue;
+
+        int partonsMatcheable(0);
+        for (auto pdgId : *jet_parentghost_pdgId) {
+            if (abs(pdgId) == 6 || abs(pdgId) == 24) ++partonsMatcheable;
+        }
+
+        if (partonsMatcheable != 10) continue;
 
         if ((eventInd % 1) == 0) printf("[%10i | %10i]\n", eventInd, nEventsMax);
+
+//        else if (nLep == 0 || nLep > 1 || jet_pt->size() != 10 || std::count_if(jet_mv2c10->begin(), jet_mv2c10->end(), [](float x){return x > 0.64;}) != 4) continue;
+
+
 
         cp_el_pt = *el_pt;
         cp_el_eta = *el_eta;
@@ -301,7 +337,7 @@ int test() {
         cp_met_phi = *met_phi;
 
 
-        KLFitter::Particles particles{};
+
 
         TLorentzVector lep;
         unsigned int pdgId;
@@ -311,8 +347,10 @@ int test() {
         } else if (!mu_pt->empty() && el_pt->empty()) {
             pdgId = 13;
         } else {
-            pdgId = mu_pt->at(0) > el_pt->at(0) ? 13 : 11;
+//            pdgId = mu_pt->at(0) > el_pt->at(0) ? 13 : 11;
+            continue;
         }
+
 
         switch (pdgId) {
             case 11:
@@ -345,13 +383,13 @@ int test() {
             //  8) 1./tagging inefficiency required for kWorkingPoint
             //  9) true flavour type
             //  10) btag discriminant
-            particles.AddParticle(jet, jet_eta->at(ijet), KLFitter::Particles::kParton, "", ijet,
-                                  static_cast<int>(jet_mv2c10->at(ijet) > 0.64), 0.6, 145., KLFitter::Particles::kNone,
+            particles.AddParticle(jet, jet_eta->at(ijet), KLFitter::Particles::kParton, Form("Jet_%i", ijet), ijet,
+                                  jet_isbtagged_MV2c10_77->at(ijet), 0.6, 145., KLFitter::Particles::kNone,
                                   jet_mv2c10->at(ijet));
         }
 
         // Add particles to the likelihood.
-        if (!fitter.SetParticles(&particles, 6)) {
+        if (!fitter.SetParticles(&particles)) {
             std::cerr << "ERROR: Failed to add particles to KLFitter. Aborting." << std::endl;
             return 1;
         }
@@ -676,7 +714,8 @@ int test() {
 
     // Close both input and output ROOT files.
     outFile.Close();
-    inFile->Close();
+//    inFile->Close();
+//    chain->Close();
 
     return EXIT_SUCCESS;
 }

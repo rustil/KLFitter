@@ -78,6 +78,16 @@ namespace KLFitter {
 
             const auto bJetPermutedIndices = permutation["b_indices"].get<std::vector<int>>();
             const auto lJetPermutedIndices = permutation["light_indices"].get<std::vector<int>>();
+
+            if (bJetParticleIndices.size() !=4) {
+                std::cout << "count other than 4 bjets is not yet implemented." << std::endl;
+                continue;
+            }
+//            for_each(bJetPermutedIndices.begin(),bJetPermutedIndices.end(),[](auto x) {std::cout << x;});
+//            std::cout << " : ";
+//            for_each(lJetPermutedIndices.begin(),lJetPermutedIndices.end(),[](auto x) {std::cout << x;});
+//            std::cout << std::endl;
+//            std::cout << bJetPermutedIndices << " : " << lJetPerm
             
             for (auto j : bJetPermutedIndices) {
                 int permutedB = bJetParticleIndices[j];
@@ -98,6 +108,17 @@ namespace KLFitter {
             for (auto j : lJetPermutedIndices) {
                 int permutedL = lJetParticleIndices[j];
                 lJetPermutedParticleIndices.emplace_back(permutedL);
+
+
+//                auto names = particles.ParticleNameContainer(KLFitter::Particles::kParton);
+//                if ((*fParticles)->NameParticle(permutedL, KLFitter::Particles::kParton) == "Jet_4") {
+//                    if (std::any_of(names->begin(), names->end(), [](std::string x) { return x == "Jet_4"; })) {
+//                        std::cout << "THIS IS NOT GOOD." << std::endl;
+//                    } else {
+//                        std::cout << "ok." << std::endl;
+//                    }
+//                }
+
 
                 particles.AddParticle(
                         (*fParticles)->Parton(permutedL),
