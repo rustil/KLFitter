@@ -41,3 +41,5 @@ cmake-build-debug
 data/transferfunctions/atlasmc12a/
 .gitignore
 .idea
+
+cmake-*/

@@ -39,6 +39,15 @@ KLFitter::Fitter::Fitter()
     // empty
 }
 
+KLFitter::Fitter::Fitter(std::string customPermutationsFilePath)
+        : fDetector(nullptr), fParticles(nullptr), ETmiss_x(0.), ETmiss_y(0.), SumET(0.), fParticlesPermuted(nullptr),
+          fMyParticlesTruth(nullptr), fLikelihood(nullptr),
+          fPermutations(std::make_unique<KLFitter::Permutations>(&fParticles, &fParticlesPermuted)),
+          fCustomPermutations(std::make_unique<KLFitter::CustomPermutations>(&fParticles, &fParticlesPermuted, customPermutationsFilePath)),
+          fMinuitStatus(0), fConvergenceStatus(0), fTurnOffSA(false), fMinimizationMethod(kMinuit) {
+    std::cout << "customPermutationsFilePath: " << customPermutationsFilePath << std::endl;
+}
+
 // ---------------------------------------------------------
 KLFitter::Fitter::~Fitter() = default;
 

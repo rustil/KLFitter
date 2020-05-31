@@ -52,6 +52,7 @@ class Fitter final {
     * The default constructor.
     */
   Fitter();
+  Fitter(std::string customPermutationsFilePath);
 
   /**
     * The (defaulted) destructor.

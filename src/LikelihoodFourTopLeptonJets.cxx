@@ -303,17 +303,17 @@ namespace KLFitter {
         m_whad1_fit_m = sqrt(m_whad1_fit_e * m_whad1_fit_e - (m_whad1_fit_px * m_whad1_fit_px + m_whad1_fit_py * m_whad1_fit_py + m_whad1_fit_pz * m_whad1_fit_pz));
 
         // hadronic W2
-        m_whad2_fit_e  = m_lq1_fit_e + m_lq2_fit_e;
-        m_whad2_fit_px = m_lq1_fit_px + m_lq2_fit_px;
-        m_whad2_fit_py = m_lq1_fit_py + m_lq2_fit_py;
-        m_whad2_fit_pz = m_lq1_fit_pz + m_lq2_fit_pz;
+        m_whad2_fit_e  = m_lq3_fit_e + m_lq4_fit_e;
+        m_whad2_fit_px = m_lq3_fit_px + m_lq4_fit_px;
+        m_whad2_fit_py = m_lq3_fit_py + m_lq4_fit_py;
+        m_whad2_fit_pz = m_lq3_fit_pz + m_lq4_fit_pz;
         m_whad2_fit_m = sqrt(m_whad2_fit_e * m_whad2_fit_e - (m_whad2_fit_px * m_whad2_fit_px + m_whad2_fit_py * m_whad2_fit_py + m_whad2_fit_pz * m_whad2_fit_pz));
 
         // hadronic W3
-        m_whad3_fit_e  = m_lq1_fit_e + m_lq2_fit_e;
-        m_whad3_fit_px = m_lq1_fit_px + m_lq2_fit_px;
-        m_whad3_fit_py = m_lq1_fit_py + m_lq2_fit_py;
-        m_whad3_fit_pz = m_lq1_fit_pz + m_lq2_fit_pz;
+        m_whad3_fit_e  = m_lq5_fit_e + m_lq6_fit_e;
+        m_whad3_fit_px = m_lq5_fit_px + m_lq6_fit_px;
+        m_whad3_fit_py = m_lq5_fit_py + m_lq6_fit_py;
+        m_whad3_fit_pz = m_lq5_fit_pz + m_lq6_fit_pz;
         m_whad3_fit_m = sqrt(m_whad3_fit_e * m_whad3_fit_e - (m_whad3_fit_px * m_whad3_fit_px + m_whad3_fit_py * m_whad3_fit_py + m_whad3_fit_pz * m_whad3_fit_pz));
 
         // leptonic W
@@ -359,39 +359,6 @@ namespace KLFitter {
     int LikelihoodFourTopLeptonJets::RemoveInvariantParticlePermutations() {
         // error code
         int err = 1;
-
-        // remove the permutation from the second and the third jet
-        Particles::ParticleType ptype = Particles::kParton;
-        std::vector<int> indexVector_Jets;
-//        indexVector_Jets.push_back(2);
-//        indexVector_Jets.push_back(3);
-//        err *= (*fPermutations)->InvariantParticlePermutations(ptype, indexVector_Jets);
-
-        // remove invariant jet permutations of all jets not considered
-        Particles* particles = (*fPermutations)->Particles();
-        indexVector_Jets.clear();
-        for (int iPartons = 4; iPartons < particles->NPartons(); iPartons++) {
-            indexVector_Jets.push_back(iPartons);
-        }
-        err *= (*fPermutations)->InvariantParticlePermutations(ptype, indexVector_Jets);
-
-        // remove the permutation from the other lepton
-        if (m_lepton_type == kElectron) {
-            ptype = Particles::kMuon;
-            std::vector<int> indexVector_Muons;
-            for (int iMuon = 0; iMuon < particles->NMuons(); iMuon++) {
-                indexVector_Muons.push_back(iMuon);
-            }
-            err *= (*fPermutations)->InvariantParticlePermutations(ptype, indexVector_Muons);
-        } else if (m_lepton_type == kMuon) {
-            ptype = Particles::kElectron;
-            std::vector<int> indexVector_Electrons;
-            for (int iElectron = 0; iElectron < particles->NElectrons(); iElectron++) {
-                indexVector_Electrons.push_back(iElectron);
-            }
-            err *= (*fPermutations)->InvariantParticlePermutations(ptype, indexVector_Electrons);
-        }
-
         // return error code
         return err;
     }
@@ -578,9 +545,7 @@ namespace KLFitter {
 
         // Breit-Wigner of hadronically decaying W-boson
         logprob += BCMath::LogBreitWignerRel(m_whad1_fit_m, massW, gammaW);
-        // Breit-Wigner of hadronically decaying W-boson
         logprob += BCMath::LogBreitWignerRel(m_whad2_fit_m, massW, gammaW);
-        // Breit-Wigner of hadronically decaying W-boson
         logprob += BCMath::LogBreitWignerRel(m_whad3_fit_m, massW, gammaW);
 
         // Breit-Wigner of leptonically decaying W-boson

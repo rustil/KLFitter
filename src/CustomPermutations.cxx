@@ -16,6 +16,15 @@ namespace KLFitter {
 
     }
 
+    CustomPermutations::CustomPermutations(KLFitter::Particles** p, KLFitter::Particles** pp, const std::string& customPermutationsFilePath) :
+            fParticles(p),
+    fParticlesPermuted(pp),
+    fPermutationIndex(-1) {
+
+        std::ifstream i(customPermutationsFilePath);
+        i >> fJsonPermutations;
+    }
+
     std::vector<std::vector<int> > *CustomPermutations::PermutationTable() {
         return nullptr;
     }

@@ -1,0 +1,8 @@
+setupATLAS
+lsetup "lcgenv -p LCG_93 x86_64-centos7-gcc62-opt ROOT"
+lsetup cmake
+cd cmake-build-s01/
+cmake -DBUILTIN_BAT=true ../
+cmake --build ./ -- -j
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/users/divers/atlas/rustige/scratch/private/cernbox/PhD_Sync/Packages/KLFitter/cmake-build-s01/lib
+#export LD_LIBRARY_PATH=LD_LIBRARY_PATH:/users/divers/atlas/rustige/scratch/private/cernbox/PhD_Sync/Packages/KLFitter/cmake-build-s01/lib:/cvmfs/sft.cern.ch/lcg/releases/LCG_94/ROOT/6.14.04/x86_64-slc6-gcc62-opt/lib/:/cvmfs/sft.cern.ch/lcg/releases/tbb/2019_U1-5939b/x86_64-slc6-gcc62-opt/lib/

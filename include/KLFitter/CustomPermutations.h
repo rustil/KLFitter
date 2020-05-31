@@ -52,6 +52,7 @@ class CustomPermutations final {
     * @param pp A pointer to the pointer to the permutated set of particles.
     */
   CustomPermutations(KLFitter::Particles** p, KLFitter::Particles** pp);
+  CustomPermutations(KLFitter::Particles** p, KLFitter::Particles** pp, const std::string& customPermutationsFilePath);
 
   /**
     * The (defaulted) copy constructor.
@@ -181,14 +182,11 @@ class CustomPermutations final {
     */
   int Reset();
 
-  /**
-    * Creates table of permutations.
-    */
-//  int CreateSubTable(int Nobj, std::vector<std::vector<int> >* table, int Nmax = -1);
+        const nlohmann::json &getFJsonPermutations() const {
+            return fJsonPermutations;
+        }
 
-  /* @} */
-
- private:
+    private:
   /**
     * Check if particles are defined.
     */

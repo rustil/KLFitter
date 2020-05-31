@@ -18,11 +18,58 @@
 #include "TLorentzVector.h"
 #include "TTreeReader.h"
 #include "TTreeReaderValue.h"
+#include "TRandom3.h"
+#include "TMath.h"
+#include "NLohmann/json.hpp"
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
 
-int test() {
-    KLFitter::Fitter fitter{};
-    KLFitter::DetectorAtlas_8TeV detector{
-            "/home/lennart/cernbox/PhD_Sync/Packages/KLFitter/data/transferfunctions/atlasmc12a/akt4_LCtopo_PP6"};
+struct topChild {
+    int origJetIndex;
+    int pdgID;
+    float matchDeltaR;
+    TLorentzVector childVector;
+    TLorentzVector truthTop;
+    bool isHadronic;
+};
+
+
+std::tuple<int,float> deltaRMatch(TLorentzVector& child, std::vector<float>& jet_pt, std::vector<float>& jet_eta, std::vector<float>& jet_phi, std::vector<float>& jet_e) {
+    float minDR = 999.;
+    size_t minDR_Ind;
+    for (size_t i = 0; i < jet_pt.size(); i++) {
+        TLorentzVector comp {
+            jet_pt.at(i),
+            jet_eta.at(i),
+            jet_phi.at(i),
+            jet_e.at(i)
+        };
+
+        float dR = child.DeltaR(comp);
+        if (dR < minDR) {
+            minDR = dR;
+            minDR_Ind = i;
+        }
+    }
+    return std::make_tuple(minDR_Ind, minDR);
+}
+
+
+int test(std::string config_path) {
+    nlohmann::json conf;
+    std::ifstream i(config_path);
+    i >> conf;
+    auto permutationsFilePath = conf["permutationsFilePath"].get<std::string>();
+    KLFitter::Fitter fitter(permutationsFilePath);
+    KLFitter::DetectorAtlas_8TeV detector{conf["detectorPath"].get<std::string>()};
+
+    int nPartonsMatched = -1;
+    if (conf.find("nPartonsMatched") != conf.end())
+     nPartonsMatched = conf["nPartonsMatched"].get<int>();
+
+    std::cout << "nPartonsMatched: " << nPartonsMatched << std::endl;
+
     if (!fitter.SetDetector(&detector)) {
         std::cerr << "ERROR: Failed to set detector! Aborting" << std::endl;
         return EXIT_FAILURE;
@@ -44,15 +91,18 @@ int test() {
         return 1;
     }
 
+
+    std::vector<std::string> fileNames = conf["inputFiles"].get<std::vector<std::string>>();
+
     auto chain = new TChain("nominal_Loose");
-    std::vector<std::string> fileNames = {
-            "/home/lennart/Data/klftest/wTruth/user.lrustige.412043.aMcAtNloPythia8EvtGen.DAOD_TOPQ1.e7101_a875_r10724_p3629.SM4t-212560_mc16e_KLFitter_v1_output_root/user.lrustige.18026714._000002.output.root",
-            "/home/lennart/Data/klftest/wTruth/user.lrustige.412043.aMcAtNloPythia8EvtGen.DAOD_TOPQ1.e7101_a875_r10724_p3629.SM4t-212560_mc16e_KLFitter_v1_output_root/user.lrustige.18026714._000001.output.root",
-            "/home/lennart/Data/klftest/wTruth/user.lrustige.412043.aMcAtNloPythia8EvtGen.DAOD_TOPQ1.e7101_a875_r10724_p3629.SM4t-212560_mc16e_KLFitter_v1_output_root/user.lrustige.18026714._000004.output.root",
-            "/home/lennart/Data/klftest/wTruth/user.lrustige.412043.aMcAtNloPythia8EvtGen.DAOD_TOPQ1.e7101_a875_r10724_p3629.SM4t-212560_mc16e_KLFitter_v1_output_root/user.lrustige.18026714._000006.output.root",
-            "/home/lennart/Data/klftest/wTruth/user.lrustige.412043.aMcAtNloPythia8EvtGen.DAOD_TOPQ1.e7101_a875_r10724_p3629.SM4t-212560_mc16e_KLFitter_v1_output_root/user.lrustige.18026714._000005.output.root",
-            "/home/lennart/Data/klftest/wTruth/user.lrustige.412043.aMcAtNloPythia8EvtGen.DAOD_TOPQ1.e7101_a875_r10724_p3629.SM4t-212560_mc16e_KLFitter_v1_output_root/user.lrustige.18026714._000003.output.root"
-    };
+//    std::vector<std::string> fileNames = {
+//            "/home/lennart/Data/klftest/wTruth/user.lrustige.412043.aMcAtNloPythia8EvtGen.DAOD_TOPQ1.e7101_a875_r10724_p3629.SM4t-212560_mc16e_KLFitter_v1_output_root/user.lrustige.18026714._000002.output.root",
+//            "/home/lennart/Data/klftest/wTruth/user.lrustige.412043.aMcAtNloPythia8EvtGen.DAOD_TOPQ1.e7101_a875_r10724_p3629.SM4t-212560_mc16e_KLFitter_v1_output_root/user.lrustige.18026714._000001.output.root",
+//            "/home/lennart/Data/klftest/wTruth/user.lrustige.412043.aMcAtNloPythia8EvtGen.DAOD_TOPQ1.e7101_a875_r10724_p3629.SM4t-212560_mc16e_KLFitter_v1_output_root/user.lrustige.18026714._000004.output.root",
+//            "/home/lennart/Data/klftest/wTruth/user.lrustige.412043.aMcAtNloPythia8EvtGen.DAOD_TOPQ1.e7101_a875_r10724_p3629.SM4t-212560_mc16e_KLFitter_v1_output_root/user.lrustige.18026714._000006.output.root",
+//            "/home/lennart/Data/klftest/wTruth/user.lrustige.412043.aMcAtNloPythia8EvtGen.DAOD_TOPQ1.e7101_a875_r10724_p3629.SM4t-212560_mc16e_KLFitter_v1_output_root/user.lrustige.18026714._000005.output.root",
+//            "/home/lennart/Data/klftest/wTruth/user.lrustige.412043.aMcAtNloPythia8EvtGen.DAOD_TOPQ1.e7101_a875_r10724_p3629.SM4t-212560_mc16e_KLFitter_v1_output_root/user.lrustige.18026714._000003.output.root"
+//    };
 
     for (auto fn : fileNames) chain->AddFile(fn.c_str());
 
@@ -90,17 +140,159 @@ int test() {
 
     TTreeReaderValue<float> met_met(reader, "met_met");
     TTreeReaderValue<float> met_phi(reader, "met_phi");
-
-    TTreeReaderValue<std::vector<int>> jet_parentghost_pdgId(reader, "jet_parentghost_pdgId");
     TTreeReaderValue<std::vector<char>> jet_isbtagged_MV2c10_77(reader, "jet_isbtagged_MV2c10_77");
+
+    TTreeReaderValue<int> truth_nLepTop(reader, "truth_nLepTop");
+    TTreeReaderValue<int> truth_nTop(reader, "truth_nTop");
+
+    TTreeReaderValue<int> ejets_MV2c10(reader, "ejets_MV2c10");
+    TTreeReaderValue<int> mujets_MV2c10(reader, "mujets_MV2c10");
+
+    TTreeReaderValue<float> mu(reader, "mu");
+    TTreeReaderValue<unsigned long long> eventNumber(reader, "eventNumber");
+    TTreeReaderValue<unsigned int> runNumber(reader, "runNumber");
+
+    TTreeReaderValue<float> weight_jvt(reader, "weight_jvt");
+    TTreeReaderValue<float> weight_pileup(reader, "weight_pileup");
+    TTreeReaderValue<float> weight_leptonSF(reader, "weight_leptonSF");
+    TTreeReaderValue<float> weight_mc(reader, "weight_mc");
+    TTreeReaderValue<float> weight_globalLeptonTriggerSF(reader, "weight_globalLeptonTriggerSF");
+    TTreeReaderValue<float> weight_bTagSF_MV2c10_77(reader, "weight_bTagSF_MV2c10_77");
+
+    // For 4t
+    TTreeReaderValue<float> truth_top1_pt(reader, "truth_top1_pt");
+    TTreeReaderValue<float> truth_top1_eta(reader, "truth_top1_eta");
+    TTreeReaderValue<float> truth_top1_phi(reader, "truth_top1_phi");
+    TTreeReaderValue<int> truth_top1_isHad(reader, "truth_top1_isHad");
+
+    TTreeReaderValue<float> truth_top1_child0_pt(reader, "truth_top1_child0_pt");
+    TTreeReaderValue<float> truth_top1_child0_eta(reader, "truth_top1_child0_eta");
+    TTreeReaderValue<float> truth_top1_child0_phi(reader, "truth_top1_child0_phi");
+    TTreeReaderValue<float> truth_top1_child0_e(reader, "truth_top1_child0_e");
+    TTreeReaderValue<int> truth_top1_child0_pdgid(reader, "truth_top1_child0_pdgid");
+    TTreeReaderValue<float> truth_top1_child1_pt(reader, "truth_top1_child1_pt");
+    TTreeReaderValue<float> truth_top1_child1_eta(reader, "truth_top1_child1_eta");
+    TTreeReaderValue<float> truth_top1_child1_phi(reader, "truth_top1_child1_phi");
+    TTreeReaderValue<float> truth_top1_child1_e(reader, "truth_top1_child1_e");
+    TTreeReaderValue<int> truth_top1_child1_pdgid(reader, "truth_top1_child1_pdgid");
+    TTreeReaderValue<float> truth_top1_child2_pt(reader, "truth_top1_child2_pt");
+    TTreeReaderValue<float> truth_top1_child2_eta(reader, "truth_top1_child2_eta");
+    TTreeReaderValue<float> truth_top1_child2_phi(reader, "truth_top1_child2_phi");
+    TTreeReaderValue<float> truth_top1_child2_e(reader, "truth_top1_child2_e");
+    TTreeReaderValue<int> truth_top1_child2_pdgid(reader, "truth_top1_child2_pdgid");
+
+
+    TTreeReaderValue<float> truth_top2_pt(reader, "truth_top2_pt");
+    TTreeReaderValue<float> truth_top2_eta(reader, "truth_top2_eta");
+    TTreeReaderValue<float> truth_top2_phi(reader, "truth_top2_phi");
+    TTreeReaderValue<int> truth_top2_isHad(reader, "truth_top2_isHad");
+
+    TTreeReaderValue<float> truth_top2_child0_pt(reader, "truth_top2_child0_pt");
+    TTreeReaderValue<float> truth_top2_child0_eta(reader, "truth_top2_child0_eta");
+    TTreeReaderValue<float> truth_top2_child0_phi(reader, "truth_top2_child0_phi");
+    TTreeReaderValue<float> truth_top2_child0_e(reader, "truth_top2_child0_e");
+    TTreeReaderValue<int> truth_top2_child0_pdgid(reader, "truth_top2_child0_pdgid");
+    TTreeReaderValue<float> truth_top2_child1_pt(reader, "truth_top2_child1_pt");
+    TTreeReaderValue<float> truth_top2_child1_eta(reader, "truth_top2_child1_eta");
+    TTreeReaderValue<float> truth_top2_child1_phi(reader, "truth_top2_child1_phi");
+    TTreeReaderValue<float> truth_top2_child1_e(reader, "truth_top2_child1_e");
+    TTreeReaderValue<int> truth_top2_child1_pdgid(reader, "truth_top2_child1_pdgid");
+    TTreeReaderValue<float> truth_top2_child2_pt(reader, "truth_top2_child2_pt");
+    TTreeReaderValue<float> truth_top2_child2_eta(reader, "truth_top2_child2_eta");
+    TTreeReaderValue<float> truth_top2_child2_phi(reader, "truth_top2_child2_phi");
+    TTreeReaderValue<float> truth_top2_child2_e(reader, "truth_top2_child2_e");
+    TTreeReaderValue<int> truth_top2_child2_pdgid(reader, "truth_top2_child2_pdgid");
+
+
+    TTreeReaderValue<float> truth_tbar1_pt(reader, "truth_tbar1_pt");
+    TTreeReaderValue<float> truth_tbar1_eta(reader, "truth_tbar1_eta");
+    TTreeReaderValue<float> truth_tbar1_phi(reader, "truth_tbar1_phi");
+    TTreeReaderValue<int> truth_tbar1_isHad(reader, "truth_tbar1_isHad");
+
+    TTreeReaderValue<float> truth_tbar1_child0_pt(reader, "truth_tbar1_child0_pt");
+    TTreeReaderValue<float> truth_tbar1_child0_eta(reader, "truth_tbar1_child0_eta");
+    TTreeReaderValue<float> truth_tbar1_child0_phi(reader, "truth_tbar1_child0_phi");
+    TTreeReaderValue<float> truth_tbar1_child0_e(reader, "truth_tbar1_child0_e");
+    TTreeReaderValue<int> truth_tbar1_child0_pdgid(reader, "truth_tbar1_child0_pdgid");
+    TTreeReaderValue<float> truth_tbar1_child1_pt(reader, "truth_tbar1_child1_pt");
+    TTreeReaderValue<float> truth_tbar1_child1_eta(reader, "truth_tbar1_child1_eta");
+    TTreeReaderValue<float> truth_tbar1_child1_phi(reader, "truth_tbar1_child1_phi");
+    TTreeReaderValue<float> truth_tbar1_child1_e(reader, "truth_tbar1_child1_e");
+    TTreeReaderValue<int> truth_tbar1_child1_pdgid(reader, "truth_tbar1_child1_pdgid");
+    TTreeReaderValue<float> truth_tbar1_child2_pt(reader, "truth_tbar1_child2_pt");
+    TTreeReaderValue<float> truth_tbar1_child2_eta(reader, "truth_tbar1_child2_eta");
+    TTreeReaderValue<float> truth_tbar1_child2_phi(reader, "truth_tbar1_child2_phi");
+    TTreeReaderValue<float> truth_tbar1_child2_e(reader, "truth_tbar1_child2_e");
+    TTreeReaderValue<int> truth_tbar1_child2_pdgid(reader, "truth_tbar1_child2_pdgid");
+
+
+    TTreeReaderValue<float> truth_tbar2_pt(reader, "truth_tbar2_pt");
+    TTreeReaderValue<float> truth_tbar2_eta(reader, "truth_tbar2_eta");
+    TTreeReaderValue<float> truth_tbar2_phi(reader, "truth_tbar2_phi");
+    TTreeReaderValue<int> truth_tbar2_isHad(reader, "truth_tbar2_isHad");
+    TTreeReaderValue<float> truth_tbar2_child0_pt(reader, "truth_tbar2_child0_pt");
+    TTreeReaderValue<float> truth_tbar2_child0_eta(reader, "truth_tbar2_child0_eta");
+    TTreeReaderValue<float> truth_tbar2_child0_phi(reader, "truth_tbar2_child0_phi");
+    TTreeReaderValue<float> truth_tbar2_child0_e(reader, "truth_tbar2_child0_e");
+    TTreeReaderValue<int> truth_tbar2_child0_pdgid(reader, "truth_tbar2_child0_pdgid");
+    TTreeReaderValue<float> truth_tbar2_child1_pt(reader, "truth_tbar2_child1_pt");
+    TTreeReaderValue<float> truth_tbar2_child1_eta(reader, "truth_tbar2_child1_eta");
+    TTreeReaderValue<float> truth_tbar2_child1_phi(reader, "truth_tbar2_child1_phi");
+    TTreeReaderValue<float> truth_tbar2_child1_e(reader, "truth_tbar2_child1_e");
+    TTreeReaderValue<int> truth_tbar2_child1_pdgid(reader, "truth_tbar2_child1_pdgid");
+    TTreeReaderValue<float> truth_tbar2_child2_pt(reader, "truth_tbar2_child2_pt");
+    TTreeReaderValue<float> truth_tbar2_child2_eta(reader, "truth_tbar2_child2_eta");
+    TTreeReaderValue<float> truth_tbar2_child2_phi(reader, "truth_tbar2_child2_phi");
+    TTreeReaderValue<float> truth_tbar2_child2_e(reader, "truth_tbar2_child2_e");
+    TTreeReaderValue<int> truth_tbar2_child2_pdgid(reader, "truth_tbar2_child2_pdgid");
+//-----------------------
+    TTreeReaderValue<std::vector<float>> jet_firstghost_e(reader, "jet_firstghost_e");
+    TTreeReaderValue<std::vector<float>> jet_firstghost_eta(reader, "jet_firstghost_eta");
+    TTreeReaderValue<std::vector<float>> jet_firstghost_phi(reader, "jet_firstghost_phi");
+    TTreeReaderValue<std::vector<float>> jet_firstghost_pt(reader, "jet_firstghost_pt");
+    TTreeReaderValue<std::vector<int>> jet_firstghost_pdgId(reader, "jet_firstghost_pdgId");
+    TTreeReaderValue<std::vector<float>> jet_parentghost_e(reader, "jet_parentghost_e");
+    TTreeReaderValue<std::vector<float>> jet_parentghost_eta(reader, "jet_parentghost_eta");
+    TTreeReaderValue<std::vector<float>> jet_parentghost_phi(reader, "jet_parentghost_phi");
+    TTreeReaderValue<std::vector<float>> jet_parentghost_pt(reader, "jet_parentghost_pt");
+    TTreeReaderValue<std::vector<int>> jet_parentghost_pdgId(reader, "jet_parentghost_pdgId");
+    TTreeReaderValue<std::vector<int>> el_true_pdg(reader, "el_true_pdg");
+    TTreeReaderValue<std::vector<float>> el_true_eta(reader, "el_true_eta");
+    TTreeReaderValue<std::vector<float>> el_true_pt(reader, "el_true_pt");
+    TTreeReaderValue<std::vector<int>> mu_true_pdg(reader, "mu_true_pdg");
+    TTreeReaderValue<std::vector<float>> mu_true_eta(reader, "mu_true_eta");
+    TTreeReaderValue<std::vector<float>> mu_true_pt(reader, "mu_true_pt");
+
+
+
+
+    // For ttbar
+//    TTreeReaderValue<float> truth_tbar_pt(reader, "truth_tbar_pt");
+//    TTreeReaderValue<float> truth_top_pt(reader, "truth_top_pt");
+//    TTreeReaderValue<float> truth_tbar_eta(reader, "truth_tbar_eta");
+//    TTreeReaderValue<float> truth_top_eta(reader, "truth_top_eta");
+//    TTreeReaderValue<float> truth_tbar_phi(reader, "truth_tbar_phi");
+//    TTreeReaderValue<float> truth_top_phi(reader, "truth_top_phi");
+
+    bool isTtBar = false;
+    if (conf.find("isTtBar") != conf.end()){
+        isTtBar = conf["isTtBar"].get<bool>();
+    }
+
+
+
 
 
     //TODO:!
-    unsigned int nEventsMax = 100;
+    unsigned int nEventsMax = conf["nEvents"].get<int>();
     unsigned int eventInd = 0;
 
+    std::string outFilePath;
+    if (conf.find("outputFile") != conf.end())
+        outFilePath = conf["outputFile"].get<std::string>();
+
     /* Out section */
-    TFile outFile("./output1.root", "RECREATE");
+    TFile outFile(outFilePath.c_str(), "RECREATE");
 //    TTree* outTree = (TTree*)inFile->Get("nominal_Loose")->Clone();
     TTree outTree("nominal", "nominal");
 
@@ -122,6 +314,119 @@ int test() {
 
     float cp_met_met;
     float cp_met_phi;
+
+//    std::vector<float> cp_truth_top_pt;
+//    std::vector<float> cp_truth_top_eta;
+//    std::vector<float> cp_truth_top_phi;
+//    std::vector<int> cp_truth_top_type;
+
+    int cp_ejets_MV2c10;
+    int cp_mujets_MV2c10;
+
+    float cp_mu;
+    float cp_weight_jvt;
+    float cp_weight_pileup;
+    float cp_weight_leptonSF;
+    float cp_weight_mc;
+    float cp_weight_globalLeptonTriggerSF;
+    float cp_weight_bTagSF_MV2c10_77;
+
+    unsigned long long cp_eventNumber;
+    unsigned int cp_runNumber;
+
+/*! Automated stuff */
+
+    float cp_truth_top1_pt;
+    float cp_truth_top1_eta;
+    float cp_truth_top1_phi;
+    float cp_truth_top1_child0_pt;
+    float cp_truth_top1_child0_eta;
+    float cp_truth_top1_child0_phi;
+    float cp_truth_top1_child0_e;
+    int cp_truth_top1_child0_pdgid;
+    float cp_truth_top1_child1_pt;
+    float cp_truth_top1_child1_eta;
+    float cp_truth_top1_child1_phi;
+    float cp_truth_top1_child1_e;
+    int cp_truth_top1_child1_pdgid;
+    float cp_truth_top1_child2_pt;
+    float cp_truth_top1_child2_eta;
+    float cp_truth_top1_child2_phi;
+    float cp_truth_top1_child2_e;
+    int cp_truth_top1_child2_pdgid;
+    float cp_truth_top2_pt;
+    float cp_truth_top2_eta;
+    float cp_truth_top2_phi;
+    float cp_truth_top2_child0_pt;
+    float cp_truth_top2_child0_eta;
+    float cp_truth_top2_child0_phi;
+    float cp_truth_top2_child0_e;
+    int cp_truth_top2_child0_pdgid;
+    float cp_truth_top2_child1_pt;
+    float cp_truth_top2_child1_eta;
+    float cp_truth_top2_child1_phi;
+    float cp_truth_top2_child1_e;
+    int cp_truth_top2_child1_pdgid;
+    float cp_truth_top2_child2_pt;
+    float cp_truth_top2_child2_eta;
+    float cp_truth_top2_child2_phi;
+    float cp_truth_top2_child2_e;
+    int cp_truth_top2_child2_pdgid;
+    float cp_truth_tbar1_pt;
+    float cp_truth_tbar1_eta;
+    float cp_truth_tbar1_phi;
+    float cp_truth_tbar1_child0_pt;
+    float cp_truth_tbar1_child0_eta;
+    float cp_truth_tbar1_child0_phi;
+    float cp_truth_tbar1_child0_e;
+    int cp_truth_tbar1_child0_pdgid;
+    float cp_truth_tbar1_child1_pt;
+    float cp_truth_tbar1_child1_eta;
+    float cp_truth_tbar1_child1_phi;
+    float cp_truth_tbar1_child1_e;
+    int cp_truth_tbar1_child1_pdgid;
+    float cp_truth_tbar1_child2_pt;
+    float cp_truth_tbar1_child2_eta;
+    float cp_truth_tbar1_child2_phi;
+    float cp_truth_tbar1_child2_e;
+    int cp_truth_tbar1_child2_pdgid;
+    float cp_truth_tbar2_pt;
+    float cp_truth_tbar2_eta;
+    float cp_truth_tbar2_phi;
+    float cp_truth_tbar2_child0_pt;
+    float cp_truth_tbar2_child0_eta;
+    float cp_truth_tbar2_child0_phi;
+    float cp_truth_tbar2_child0_e;
+    int cp_truth_tbar2_child0_pdgid;
+    float cp_truth_tbar2_child1_pt;
+    float cp_truth_tbar2_child1_eta;
+    float cp_truth_tbar2_child1_phi;
+    float cp_truth_tbar2_child1_e;
+    int cp_truth_tbar2_child1_pdgid;
+    float cp_truth_tbar2_child2_pt;
+    float cp_truth_tbar2_child2_eta;
+    float cp_truth_tbar2_child2_phi;
+    float cp_truth_tbar2_child2_e;
+    int cp_truth_tbar2_child2_pdgid;
+//-----------------------
+    std::vector<float> cp_jet_firstghost_e;
+    std::vector<float> cp_jet_firstghost_eta;
+    std::vector<float> cp_jet_firstghost_phi;
+    std::vector<float> cp_jet_firstghost_pt;
+    std::vector<int> cp_jet_firstghost_pdgId;
+    std::vector<float> cp_jet_parentghost_e;
+    std::vector<float> cp_jet_parentghost_eta;
+    std::vector<float> cp_jet_parentghost_phi;
+    std::vector<float> cp_jet_parentghost_pt;
+    std::vector<int> cp_jet_parentghost_pdgId;
+    std::vector<int> cp_el_true_pdg;
+    std::vector<float> cp_el_true_eta;
+    std::vector<float> cp_el_true_pt;
+    std::vector<int> cp_mu_true_pdg;
+    std::vector<float> cp_mu_true_eta;
+    std::vector<float> cp_mu_true_pt;
+
+    //----------------------------
 
     std::vector<float> klf_bhad1_pt;
     std::vector<float> klf_bhad1_eta;
@@ -296,24 +601,210 @@ int test() {
     outTree.Branch("met_met", &cp_met_met);
     outTree.Branch("met_phi", &cp_met_phi);
 
-    
+    outTree.Branch("ejets_MV2c10", &cp_ejets_MV2c10);
+    outTree.Branch("mujets_MV2c10", &cp_mujets_MV2c10);
+
+    outTree.Branch("mu", &cp_mu);
+    outTree.Branch("weight_jvt", &cp_weight_jvt);
+    outTree.Branch("weight_pileup", &cp_weight_pileup);
+    outTree.Branch("weight_leptonSF", &cp_weight_leptonSF);
+    outTree.Branch("weight_mc", &cp_weight_mc);
+    outTree.Branch("weight_globalLeptonTriggerSF", &cp_weight_globalLeptonTriggerSF);
+    outTree.Branch("weight_bTagSF_MV2c10_77", &cp_weight_bTagSF_MV2c10_77);
+
+    outTree.Branch("eventNumber", &cp_eventNumber);
+    outTree.Branch("runNumber", &cp_runNumber);
+
+    int nPartonsMatcheable;
+    outTree.Branch("nPartonsMatcheable", &nPartonsMatcheable);
+
+    outTree.Branch("truth_top1_pt", &cp_truth_top1_pt);
+    outTree.Branch("truth_top1_eta", &cp_truth_top1_eta);
+    outTree.Branch("truth_top1_phi", &cp_truth_top1_phi);
+    outTree.Branch("truth_top1_child0_pt", &cp_truth_top1_child0_pt);
+    outTree.Branch("truth_top1_child0_eta", &cp_truth_top1_child0_eta);
+    outTree.Branch("truth_top1_child0_phi", &cp_truth_top1_child0_phi);
+    outTree.Branch("truth_top1_child0_e", &cp_truth_top1_child0_e);
+    outTree.Branch("truth_top1_child0_pdgid", &cp_truth_top1_child0_pdgid);
+    outTree.Branch("truth_top1_child1_pt", &cp_truth_top1_child1_pt);
+    outTree.Branch("truth_top1_child1_eta", &cp_truth_top1_child1_eta);
+    outTree.Branch("truth_top1_child1_phi", &cp_truth_top1_child1_phi);
+    outTree.Branch("truth_top1_child1_e", &cp_truth_top1_child1_e);
+    outTree.Branch("truth_top1_child1_pdgid", &cp_truth_top1_child1_pdgid);
+    outTree.Branch("truth_top1_child2_pt", &cp_truth_top1_child2_pt);
+    outTree.Branch("truth_top1_child2_eta", &cp_truth_top1_child2_eta);
+    outTree.Branch("truth_top1_child2_phi", &cp_truth_top1_child2_phi);
+    outTree.Branch("truth_top1_child2_e", &cp_truth_top1_child2_e);
+    outTree.Branch("truth_top1_child2_pdgid", &cp_truth_top1_child2_pdgid);
+    outTree.Branch("truth_top2_pt", &cp_truth_top2_pt);
+    outTree.Branch("truth_top2_eta", &cp_truth_top2_eta);
+    outTree.Branch("truth_top2_phi", &cp_truth_top2_phi);
+    outTree.Branch("truth_top2_child0_pt", &cp_truth_top2_child0_pt);
+    outTree.Branch("truth_top2_child0_eta", &cp_truth_top2_child0_eta);
+    outTree.Branch("truth_top2_child0_phi", &cp_truth_top2_child0_phi);
+    outTree.Branch("truth_top2_child0_e", &cp_truth_top2_child0_e);
+    outTree.Branch("truth_top2_child0_pdgid", &cp_truth_top2_child0_pdgid);
+    outTree.Branch("truth_top2_child1_pt", &cp_truth_top2_child1_pt);
+    outTree.Branch("truth_top2_child1_eta", &cp_truth_top2_child1_eta);
+    outTree.Branch("truth_top2_child1_phi", &cp_truth_top2_child1_phi);
+    outTree.Branch("truth_top2_child1_e", &cp_truth_top2_child1_e);
+    outTree.Branch("truth_top2_child1_pdgid", &cp_truth_top2_child1_pdgid);
+    outTree.Branch("truth_top2_child2_pt", &cp_truth_top2_child2_pt);
+    outTree.Branch("truth_top2_child2_eta", &cp_truth_top2_child2_eta);
+    outTree.Branch("truth_top2_child2_phi", &cp_truth_top2_child2_phi);
+    outTree.Branch("truth_top2_child2_e", &cp_truth_top2_child2_e);
+    outTree.Branch("truth_top2_child2_pdgid", &cp_truth_top2_child2_pdgid);
+    outTree.Branch("truth_tbar1_pt", &cp_truth_tbar1_pt);
+    outTree.Branch("truth_tbar1_eta", &cp_truth_tbar1_eta);
+    outTree.Branch("truth_tbar1_phi", &cp_truth_tbar1_phi);
+    outTree.Branch("truth_tbar1_child0_pt", &cp_truth_tbar1_child0_pt);
+    outTree.Branch("truth_tbar1_child0_eta", &cp_truth_tbar1_child0_eta);
+    outTree.Branch("truth_tbar1_child0_phi", &cp_truth_tbar1_child0_phi);
+    outTree.Branch("truth_tbar1_child0_e", &cp_truth_tbar1_child0_e);
+    outTree.Branch("truth_tbar1_child0_pdgid", &cp_truth_tbar1_child0_pdgid);
+    outTree.Branch("truth_tbar1_child1_pt", &cp_truth_tbar1_child1_pt);
+    outTree.Branch("truth_tbar1_child1_eta", &cp_truth_tbar1_child1_eta);
+    outTree.Branch("truth_tbar1_child1_phi", &cp_truth_tbar1_child1_phi);
+    outTree.Branch("truth_tbar1_child1_e", &cp_truth_tbar1_child1_e);
+    outTree.Branch("truth_tbar1_child1_pdgid", &cp_truth_tbar1_child1_pdgid);
+    outTree.Branch("truth_tbar1_child2_pt", &cp_truth_tbar1_child2_pt);
+    outTree.Branch("truth_tbar1_child2_eta", &cp_truth_tbar1_child2_eta);
+    outTree.Branch("truth_tbar1_child2_phi", &cp_truth_tbar1_child2_phi);
+    outTree.Branch("truth_tbar1_child2_e", &cp_truth_tbar1_child2_e);
+    outTree.Branch("truth_tbar1_child2_pdgid", &cp_truth_tbar1_child2_pdgid);
+    outTree.Branch("truth_tbar2_pt", &cp_truth_tbar2_pt);
+    outTree.Branch("truth_tbar2_eta", &cp_truth_tbar2_eta);
+    outTree.Branch("truth_tbar2_phi", &cp_truth_tbar2_phi);
+    outTree.Branch("truth_tbar2_child0_pt", &cp_truth_tbar2_child0_pt);
+    outTree.Branch("truth_tbar2_child0_eta", &cp_truth_tbar2_child0_eta);
+    outTree.Branch("truth_tbar2_child0_phi", &cp_truth_tbar2_child0_phi);
+    outTree.Branch("truth_tbar2_child0_e", &cp_truth_tbar2_child0_e);
+    outTree.Branch("truth_tbar2_child0_pdgid", &cp_truth_tbar2_child0_pdgid);
+    outTree.Branch("truth_tbar2_child1_pt", &cp_truth_tbar2_child1_pt);
+    outTree.Branch("truth_tbar2_child1_eta", &cp_truth_tbar2_child1_eta);
+    outTree.Branch("truth_tbar2_child1_phi", &cp_truth_tbar2_child1_phi);
+    outTree.Branch("truth_tbar2_child1_e", &cp_truth_tbar2_child1_e);
+    outTree.Branch("truth_tbar2_child1_pdgid", &cp_truth_tbar2_child1_pdgid);
+    outTree.Branch("truth_tbar2_child2_pt", &cp_truth_tbar2_child2_pt);
+    outTree.Branch("truth_tbar2_child2_eta", &cp_truth_tbar2_child2_eta);
+    outTree.Branch("truth_tbar2_child2_phi", &cp_truth_tbar2_child2_phi);
+    outTree.Branch("truth_tbar2_child2_e", &cp_truth_tbar2_child2_e);
+    outTree.Branch("truth_tbar2_child2_pdgid", &cp_truth_tbar2_child2_pdgid);
+//-----------------------
+    outTree.Branch("jet_firstghost_e", &cp_jet_firstghost_e);
+    outTree.Branch("jet_firstghost_eta", &cp_jet_firstghost_eta);
+    outTree.Branch("jet_firstghost_phi", &cp_jet_firstghost_phi);
+    outTree.Branch("jet_firstghost_pt", &cp_jet_firstghost_pt);
+    outTree.Branch("jet_firstghost_pdgId", &cp_jet_firstghost_pdgId);
+    outTree.Branch("jet_parentghost_e", &cp_jet_parentghost_e);
+    outTree.Branch("jet_parentghost_eta", &cp_jet_parentghost_eta);
+    outTree.Branch("jet_parentghost_phi", &cp_jet_parentghost_phi);
+    outTree.Branch("jet_parentghost_pt", &cp_jet_parentghost_pt);
+    outTree.Branch("jet_parentghost_pdgId", &cp_jet_parentghost_pdgId);
+    outTree.Branch("el_true_pdg", &cp_el_true_pdg);
+    outTree.Branch("el_true_eta", &cp_el_true_eta);
+    outTree.Branch("el_true_pt", &cp_el_true_pt);
+    outTree.Branch("mu_true_pdg", &cp_mu_true_pdg);
+    outTree.Branch("mu_true_eta", &cp_mu_true_eta);
+    outTree.Branch("mu_true_pt", &cp_mu_true_pt);
+
+
+
+    time_t rawtime = time(NULL);
+    struct tm * timeinfo;
+    char buffer [80];
+
+
+
     while (reader.Next()) {
+
+
+
         KLFitter::Particles particles{};
 
         unsigned int nLep = mu_pt->size() + el_pt->size();
         if (eventInd >= nEventsMax) break;
         else if (nLep != 1 || jet_pt->size() != 10 || std::count_if(jet_isbtagged_MV2c10_77->begin(), jet_isbtagged_MV2c10_77->end(), [](char flag) {return flag;}) != 4) continue;
 
-        int partonsMatcheable(0);
-        for (auto pdgId : *jet_parentghost_pdgId) {
-            if (abs(pdgId) == 6 || abs(pdgId) == 24) ++partonsMatcheable;
+
+            nPartonsMatcheable = 0;
+
+            for (auto pdgId : *jet_parentghost_pdgId) {
+                if (abs(pdgId) == 6 || abs(pdgId) == 24) ++nPartonsMatcheable;
+            }
+
+        if (nPartonsMatched != -1 && nPartonsMatcheable != nPartonsMatched) continue;
+
+        if ((eventInd % 1) == 0) {
+            time(&rawtime);
+            timeinfo = localtime(&rawtime);
+            strftime(buffer, 80, "%FT%T", timeinfo);
+            printf("%10s: [%10i | %10i]\n", buffer, eventInd, nEventsMax);
         }
 
-        if (partonsMatcheable != 10) continue;
-
-        if ((eventInd % 1) == 0) printf("[%10i | %10i]\n", eventInd, nEventsMax);
-
 //        else if (nLep == 0 || nLep > 1 || jet_pt->size() != 10 || std::count_if(jet_mv2c10->begin(), jet_mv2c10->end(), [](float x){return x > 0.64;}) != 4) continue;
+
+        //TODO: not exactly optimal here. Match truth children from top with truth matched to reco to find correct permutation.
+        // Compare with permutation given by klf. In principle I'm only interested in the correct association of qqb and
+        // lvb to "a" top (maybe of the correct charge) and I don't care which top in a first step. After that I could ask
+        // for the right top as well (which should be always the case anyhow?). KLFitter doesn't know the charge of the tops (I think).
+
+//        std::vector<TLorentzVector> jets(10);
+//        for(std::size_t k = 0; k < jets.size(); ++k) {
+//            jets.at(k).SetPtEtaPhiE(jet_pt->at(k), jet_eta->at(k), jet_phi->at(k), jet_e->at(k));
+//        }
+
+// TODO: use true bjets to define order of tops and then permutation accordingly
+        std::vector<TLorentzVector> truthBJets(4);
+        std::vector<int> truthBJetIndices(4);
+        std::size_t j = 0;
+        for(std::size_t k = 0; k < jet_firstghost_pt->size(); ++k) {
+//            if (jet_firstghost_pt->size() < 10) break;
+
+            if (TMath::Abs(jet_firstghost_pdgId->at(k)) == 5) {
+                truthBJets.at(j).SetPtEtaPhiE(jet_firstghost_pt->at(k), jet_firstghost_eta->at(k), jet_firstghost_phi->at(k), jet_firstghost_e->at(k));
+                truthBJetIndices.at(j) = k;
+                j++;
+            }
+        }
+
+//        std::sort(truthBJets.begin(), truthBJets.end(), [](TLorentzVector v1, TLorentzVector v2) {v1.Pt() > v2.Pt();}); // They should already be pt ordered as the jet collection is
+//        std::sort(truthBJets.begin(), truthBJets.end(), [](TLorentzVector v1, TLorentzVector v2) {v1.Pt() > v2.Pt();});
+//        std::for_each(truthBJets.begin(), truthBJets.end(), [](TLorentzVector v1) {std::cout << v1.Pt() << ", ";}); // Indeed they are.
+
+        // Build fourtop vector in top1 tbar 1 top 2 tbar 2
+
+        std::vector<topChild> children;
+
+
+        std::vector<TLorentzVector> truthTops (4);
+        truthTops.at(0).SetPtEtaPhiE(*truth_top1_pt, *truth_top1_eta, *truth_top1_phi, 172.5*1e3);
+        truthTops.at(1).SetPtEtaPhiE(*truth_top2_pt, *truth_top2_eta, *truth_top2_phi, 172.5*1e3);
+        truthTops.at(2).SetPtEtaPhiE(*truth_tbar1_pt, *truth_tbar1_eta, *truth_tbar1_phi, 172.5*1e3);
+        truthTops.at(3).SetPtEtaPhiE(*truth_tbar2_pt, *truth_tbar2_eta, *truth_tbar2_phi, 172.5*1e3);
+
+        TLorentzVector child0_0_Vector = {*truth_top1_child0_pt, *truth_top1_child0_eta, *truth_top1_child0_phi, *truth_top1_child0_e };
+
+        int jetInd = -2;
+        float deltaR = 1000;
+        if (*truth_top1_isHad == 1) {
+            auto results = deltaRMatch(child0_0_Vector, *jet_pt, *jet_eta, *jet_phi, *jet_e);
+            jetInd = std::get<0> (results);
+            deltaR = std::get<1> (results);
+        }
+
+        topChild child0_0 = {
+                jetInd,
+                *truth_top1_child0_pdgid,
+                deltaR,
+                child0_0_Vector,
+                truthTops.at(0),
+                *truth_top1_isHad == 1
+        };
+
+        children.emplace_back( child0_0 );
+
+
 
 
 
@@ -336,8 +827,124 @@ int test() {
         cp_met_met = *met_met;
         cp_met_phi = *met_phi;
 
+        // Automated stuff
+        cp_truth_top1_pt = *truth_top1_pt;
+        cp_truth_top1_eta = *truth_top1_eta;
+        cp_truth_top1_phi = *truth_top1_phi;
+        cp_truth_top1_child0_pt = *truth_top1_child0_pt;
+        cp_truth_top1_child0_eta = *truth_top1_child0_eta;
+        cp_truth_top1_child0_phi = *truth_top1_child0_phi;
+        cp_truth_top1_child0_e = *truth_top1_child0_e;
+        cp_truth_top1_child0_pdgid = *truth_top1_child0_pdgid;
+        cp_truth_top1_child1_pt = *truth_top1_child1_pt;
+        cp_truth_top1_child1_eta = *truth_top1_child1_eta;
+        cp_truth_top1_child1_phi = *truth_top1_child1_phi;
+        cp_truth_top1_child1_e = *truth_top1_child1_e;
+        cp_truth_top1_child1_pdgid = *truth_top1_child1_pdgid;
+        cp_truth_top1_child2_pt = *truth_top1_child2_pt;
+        cp_truth_top1_child2_eta = *truth_top1_child2_eta;
+        cp_truth_top1_child2_phi = *truth_top1_child2_phi;
+        cp_truth_top1_child2_e = *truth_top1_child2_e;
+        cp_truth_top1_child2_pdgid = *truth_top1_child2_pdgid;
+        cp_truth_top2_pt = *truth_top2_pt;
+        cp_truth_top2_eta = *truth_top2_eta;
+        cp_truth_top2_phi = *truth_top2_phi;
+        cp_truth_top2_child0_pt = *truth_top2_child0_pt;
+        cp_truth_top2_child0_eta = *truth_top2_child0_eta;
+        cp_truth_top2_child0_phi = *truth_top2_child0_phi;
+        cp_truth_top2_child0_e = *truth_top2_child0_e;
+        cp_truth_top2_child0_pdgid = *truth_top2_child0_pdgid;
+        cp_truth_top2_child1_pt = *truth_top2_child1_pt;
+        cp_truth_top2_child1_eta = *truth_top2_child1_eta;
+        cp_truth_top2_child1_phi = *truth_top2_child1_phi;
+        cp_truth_top2_child1_e = *truth_top2_child1_e;
+        cp_truth_top2_child1_pdgid = *truth_top2_child1_pdgid;
+        cp_truth_top2_child2_pt = *truth_top2_child2_pt;
+        cp_truth_top2_child2_eta = *truth_top2_child2_eta;
+        cp_truth_top2_child2_phi = *truth_top2_child2_phi;
+        cp_truth_top2_child2_e = *truth_top2_child2_e;
+        cp_truth_top2_child2_pdgid = *truth_top2_child2_pdgid;
+        cp_truth_tbar1_pt = *truth_tbar1_pt;
+        cp_truth_tbar1_eta = *truth_tbar1_eta;
+        cp_truth_tbar1_phi = *truth_tbar1_phi;
+        cp_truth_tbar1_child0_pt = *truth_tbar1_child0_pt;
+        cp_truth_tbar1_child0_eta = *truth_tbar1_child0_eta;
+        cp_truth_tbar1_child0_phi = *truth_tbar1_child0_phi;
+        cp_truth_tbar1_child0_e = *truth_tbar1_child0_e;
+        cp_truth_tbar1_child0_pdgid = *truth_tbar1_child0_pdgid;
+        cp_truth_tbar1_child1_pt = *truth_tbar1_child1_pt;
+        cp_truth_tbar1_child1_eta = *truth_tbar1_child1_eta;
+        cp_truth_tbar1_child1_phi = *truth_tbar1_child1_phi;
+        cp_truth_tbar1_child1_e = *truth_tbar1_child1_e;
+        cp_truth_tbar1_child1_pdgid = *truth_tbar1_child1_pdgid;
+        cp_truth_tbar1_child2_pt = *truth_tbar1_child2_pt;
+        cp_truth_tbar1_child2_eta = *truth_tbar1_child2_eta;
+        cp_truth_tbar1_child2_phi = *truth_tbar1_child2_phi;
+        cp_truth_tbar1_child2_e = *truth_tbar1_child2_e;
+        cp_truth_tbar1_child2_pdgid = *truth_tbar1_child2_pdgid;
+        cp_truth_tbar2_pt = *truth_tbar2_pt;
+        cp_truth_tbar2_eta = *truth_tbar2_eta;
+        cp_truth_tbar2_phi = *truth_tbar2_phi;
+        cp_truth_tbar2_child0_pt = *truth_tbar2_child0_pt;
+        cp_truth_tbar2_child0_eta = *truth_tbar2_child0_eta;
+        cp_truth_tbar2_child0_phi = *truth_tbar2_child0_phi;
+        cp_truth_tbar2_child0_e = *truth_tbar2_child0_e;
+        cp_truth_tbar2_child0_pdgid = *truth_tbar2_child0_pdgid;
+        cp_truth_tbar2_child1_pt = *truth_tbar2_child1_pt;
+        cp_truth_tbar2_child1_eta = *truth_tbar2_child1_eta;
+        cp_truth_tbar2_child1_phi = *truth_tbar2_child1_phi;
+        cp_truth_tbar2_child1_e = *truth_tbar2_child1_e;
+        cp_truth_tbar2_child1_pdgid = *truth_tbar2_child1_pdgid;
+        cp_truth_tbar2_child2_pt = *truth_tbar2_child2_pt;
+        cp_truth_tbar2_child2_eta = *truth_tbar2_child2_eta;
+        cp_truth_tbar2_child2_phi = *truth_tbar2_child2_phi;
+        cp_truth_tbar2_child2_e = *truth_tbar2_child2_e;
+        cp_truth_tbar2_child2_pdgid = *truth_tbar2_child2_pdgid;
+//-----------------------
+        cp_jet_firstghost_e = *jet_firstghost_e;
+        cp_jet_firstghost_eta = *jet_firstghost_eta;
+        cp_jet_firstghost_phi = *jet_firstghost_phi;
+        cp_jet_firstghost_pt = *jet_firstghost_pt;
+        cp_jet_firstghost_pdgId = *jet_firstghost_pdgId;
+        cp_jet_parentghost_e = *jet_parentghost_e;
+        cp_jet_parentghost_eta = *jet_parentghost_eta;
+        cp_jet_parentghost_phi = *jet_parentghost_phi;
+        cp_jet_parentghost_pt = *jet_parentghost_pt;
+        cp_jet_parentghost_pdgId = *jet_parentghost_pdgId;
+        cp_el_true_pdg = *el_true_pdg;
+        cp_el_true_eta = *el_true_eta;
+        cp_el_true_pt = *el_true_pt;
+        cp_mu_true_pdg = *mu_true_pdg;
+        cp_mu_true_eta = *mu_true_eta;
+        cp_mu_true_pt = *mu_true_pt;
 
+        //---
 
+//        if (!isTtBar) {
+//            cp_truth_top_pt = {*truth_top1_pt, *truth_top2_pt, *truth_tbar1_pt, *truth_tbar2_pt};
+//            cp_truth_top_eta = {*truth_top1_eta, *truth_top2_eta, *truth_tbar1_eta, *truth_tbar2_eta};
+//            cp_truth_top_phi = {*truth_top1_phi, *truth_top2_phi, *truth_tbar1_phi, *truth_tbar2_phi};
+//            cp_truth_top_type = {1, 1, -1, -1};
+//        } else {
+//            cp_truth_top_pt = {*truth_top_pt, *truth_tbar_pt};
+//            cp_truth_top_eta = {*truth_top_eta, *truth_tbar_eta};
+//            cp_truth_top_phi = {*truth_top1_phi, *truth_tbar_phi};
+//            cp_truth_top_type = {1, -1};
+//        }
+
+        cp_ejets_MV2c10 = *ejets_MV2c10;
+        cp_mujets_MV2c10 = *mujets_MV2c10;
+
+        cp_mu = *mu;
+        cp_weight_jvt = *weight_jvt;
+        cp_weight_pileup = *weight_pileup;
+        cp_weight_leptonSF = *weight_leptonSF;
+        cp_weight_mc = *weight_mc;
+        cp_weight_globalLeptonTriggerSF = *weight_globalLeptonTriggerSF;
+        cp_weight_bTagSF_MV2c10_77 = *weight_bTagSF_MV2c10_77;
+
+        cp_eventNumber = *eventNumber;
+        cp_runNumber = *runNumber;
 
         TLorentzVector lep;
         unsigned int pdgId;
@@ -404,85 +1011,83 @@ int test() {
 
 //        // Loop over all permutations.
         const int nperm = fitter.CustomPermutations()->NPermutations();
-//
         bool isFirst = true;
-//
+
+        klf_bhad1_pt.clear();
+        klf_bhad1_eta.clear();
+        klf_bhad1_phi.clear();
+        klf_bhad1_e.clear();
+        klf_bhad1_jet_index.clear();
+
+        klf_bhad2_pt.clear();
+        klf_bhad2_eta.clear();
+        klf_bhad2_phi.clear();
+        klf_bhad2_e.clear();
+        klf_bhad2_jet_index.clear();
+
+        klf_bhad3_pt.clear();
+        klf_bhad3_eta.clear();
+        klf_bhad3_phi.clear();
+        klf_bhad3_e.clear();
+        klf_bhad3_jet_index.clear();
+
+        klf_blep_pt.clear();
+        klf_blep_eta.clear();
+        klf_blep_phi.clear();
+        klf_blep_e.clear();
+        klf_blep_jet_index.clear();
+        klf_lquark1_pt.clear();
+        klf_lquark1_eta.clear();
+        klf_lquark1_phi.clear();
+        klf_lquark1_e.clear();
+        klf_lquark1_jet_index.clear();
+
+        klf_lquark2_pt.clear();
+        klf_lquark2_eta.clear();
+        klf_lquark2_phi.clear();
+        klf_lquark2_e.clear();
+        klf_lquark2_jet_index.clear();
+
+        klf_lquark3_pt.clear();
+        klf_lquark3_eta.clear();
+        klf_lquark3_phi.clear();
+        klf_lquark3_e.clear();
+        klf_lquark3_jet_index.clear();
+
+        klf_lquark4_pt.clear();
+        klf_lquark4_eta.clear();
+        klf_lquark4_phi.clear();
+        klf_lquark4_e.clear();
+        klf_lquark4_jet_index.clear();
+
+        klf_lquark5_pt.clear();
+        klf_lquark5_eta.clear();
+        klf_lquark5_phi.clear();
+        klf_lquark5_e.clear();
+        klf_lquark5_jet_index.clear();
+
+        klf_lquark6_pt.clear();
+        klf_lquark6_eta.clear();
+        klf_lquark6_phi.clear();
+        klf_lquark6_e.clear();
+        klf_lquark6_jet_index.clear();
+
+        klf_lepton_pt.clear();
+        klf_lepton_eta.clear();
+        klf_lepton_phi.clear();
+        klf_lepton_e.clear();
+        klf_neutrino_pt.clear();
+        klf_neutrino_eta.clear();
+        klf_neutrino_phi.clear();
+        klf_neutrino_e.clear();
+        klf_loglikelihood.clear();
+        klf_event_probability.clear();
+        klf_fit_minuit_did_not_converge.clear();
+        klf_fit_aborted_to_nan.clear();
+        klf_fit_parameter_at_limit.clear();
+        klf_fit_invalid_transfer_function.clear();
+
         for (int iperm = 0; iperm < nperm; iperm++) {
-
-            klf_bhad1_pt.clear();
-            klf_bhad1_eta.clear();
-            klf_bhad1_phi.clear();
-            klf_bhad1_e.clear();
-            klf_bhad1_jet_index.clear();
-
-            klf_bhad2_pt.clear();
-            klf_bhad2_eta.clear();
-            klf_bhad2_phi.clear();
-            klf_bhad2_e.clear();
-            klf_bhad2_jet_index.clear();
-
-            klf_bhad3_pt.clear();
-            klf_bhad3_eta.clear();
-            klf_bhad3_phi.clear();
-            klf_bhad3_e.clear();
-            klf_bhad3_jet_index.clear();
-            
-            klf_blep_pt.clear();
-            klf_blep_eta.clear();
-            klf_blep_phi.clear();
-            klf_blep_e.clear();
-            klf_blep_jet_index.clear();
-            klf_lquark1_pt.clear();
-            klf_lquark1_eta.clear();
-            klf_lquark1_phi.clear();
-            klf_lquark1_e.clear();
-            klf_lquark1_jet_index.clear();
-            
-            klf_lquark2_pt.clear();
-            klf_lquark2_eta.clear();
-            klf_lquark2_phi.clear();
-            klf_lquark2_e.clear();
-            klf_lquark2_jet_index.clear();
-
-            klf_lquark3_pt.clear();
-            klf_lquark3_eta.clear();
-            klf_lquark3_phi.clear();
-            klf_lquark3_e.clear();
-            klf_lquark3_jet_index.clear();
-
-            klf_lquark4_pt.clear();
-            klf_lquark4_eta.clear();
-            klf_lquark4_phi.clear();
-            klf_lquark4_e.clear();
-            klf_lquark4_jet_index.clear();
-
-            klf_lquark5_pt.clear();
-            klf_lquark5_eta.clear();
-            klf_lquark5_phi.clear();
-            klf_lquark5_e.clear();
-            klf_lquark5_jet_index.clear();
-
-            klf_lquark6_pt.clear();
-            klf_lquark6_eta.clear();
-            klf_lquark6_phi.clear();
-            klf_lquark6_e.clear();
-            klf_lquark6_jet_index.clear();
-            
-            klf_lepton_pt.clear();
-            klf_lepton_eta.clear();
-            klf_lepton_phi.clear();
-            klf_lepton_e.clear();
-            klf_neutrino_pt.clear();
-            klf_neutrino_eta.clear();
-            klf_neutrino_phi.clear();
-            klf_neutrino_e.clear();
-            klf_loglikelihood.clear();
-            klf_event_probability.clear();
-            klf_fit_minuit_did_not_converge.clear();
-            klf_fit_aborted_to_nan.clear();
-            klf_fit_parameter_at_limit.clear();
-            klf_fit_invalid_transfer_function.clear();
-
 
             fitter.Fit(iperm);
 
@@ -596,27 +1201,6 @@ int test() {
             float neutrino_phi = modelParticles->Neutrino(0)->Phi();
             float neutrino_e = modelParticles->Neutrino(0)->E();
 
-//             if (isFirst) {
-//               printf("----------------------------------------------------------------------------------------------\n");
-//               printf("----------------------------------------Permutation %2i----------------------------------------\n",
-//                      iperm);
-//               printf("----------------------------------------------------------------------------------------------\n");
-//               printf("                  | hadronic b quark | leptonic b quark  |  light quark 1   |  light quark 2  |\n");
-//               printf("Jet index         | %16i | %17i | %16i | %15i |\n", bhad1_index, blep_index, lquark1_index,
-//                      lquark2_index);
-//               printf("----------------------------------------------------------------------------------------------\n");
-//               printf("                  | hadronic b quark | leptonic b quark  |  light quark 1   |  light quark 2  |\n");
-//               printf("Output Energies   | %16.2f | %17.2f | %16.2f | %15.2f |\n", bhad1_e, blep_e, lquark1_e, lquark2_e);
-//               printf("----------------------------------------------------------------------------------------------\n");
-//               printf("                  | lepton energy    | neutrino pz       | loglikelihood    |  probability    |\n");
-//               printf("Other values      | %16.2f | %17.2f | %16.2f | %15.2e |\n", lepton_e, neutrino_pt, likelihood,
-//                      event_probability);
-//               printf("----------------------------------------------------------------------------------------------\n");
-//               printf("                  | Minuit Not Conv. | Fit Aborted: NaN  | >=1 Par at Limit | Invalid TF@Conv.|\n");
-//               printf("Status Code       | %16i | %17i | %16i | %15i |\n", MinuitDidNotConverge, FitAbortedDueToNaN,
-//                      AtLeastOneFitParameterAtItsLimit, InvalidTransferFunctionAtConvergence);
-//             }
-            
             // Fill the vectors with the output variables. Note: it's
             // better/safer to store booleans as chars in ROOT files.
             klf_fit_minuit_did_not_converge.emplace_back(static_cast<char>(MinuitDidNotConverge));
@@ -702,6 +1286,13 @@ int test() {
         klf_highest_prob_index = std::distance( klf_event_probability.begin(), max_element(klf_event_probability.begin(), klf_event_probability.end()));
 
 
+
+        auto highestPerm = fitter.CustomPermutations()->getFJsonPermutations().at(klf_highest_prob_index);
+        auto jets = highestPerm["light_indices"].get<std::vector<int>>();;
+//        std::for_each(highestPerm.begin(), highestPerm.end(), [](int x) {std::cout << x;});
+//        std::cout << std::endl;
+
+
         eventInd++;
         outTree.Fill();
 
@@ -709,7 +1300,7 @@ int test() {
 
     // Go to the output file and write it.
     outFile.cd();
-    std::cout << std::endl << "Writing into output root file: " << "output.root" << std::endl << std::endl;
+    std::cout << std::endl << "Writing into output root file: " << outFilePath << std::endl << std::endl;
     outTree.Write();
 
     // Close both input and output ROOT files.
@@ -721,6 +1312,10 @@ int test() {
 }
 
 int main(int argc, char *argv[]) {
-    return test();
+    std::string config_path = "./config.json";
+    if (argc == 2)
+        config_path = argv[1];
+
+    return test(config_path);
     // return EXIT::SUCCES;
 }
