@@ -30,8 +30,19 @@ struct topChild {
     int pdgID;
     float matchDeltaR;
     TLorentzVector childVector;
-    TLorentzVector truthTop;
+//    TLorentzVector truthTop;
     bool isHadronic;
+};
+
+struct top {
+    float truthBPt;
+    int truthBChildInd;
+    float recoBPt;
+    int recoBInd;
+    bool isHadronic;
+    TLorentzVector truthTop;
+    std::vector<topChild> children;
+    std::vector<int> recoChildrenIndices;
 };
 
 
@@ -755,18 +766,19 @@ int test(std::string config_path) {
 //        }
 
 // TODO: use true bjets to define order of tops and then permutation accordingly
-        std::vector<TLorentzVector> truthBJets(4);
-        std::vector<int> truthBJetIndices(4);
-        std::size_t j = 0;
-        for(std::size_t k = 0; k < jet_firstghost_pt->size(); ++k) {
-//            if (jet_firstghost_pt->size() < 10) break;
 
-            if (TMath::Abs(jet_firstghost_pdgId->at(k)) == 5) {
-                truthBJets.at(j).SetPtEtaPhiE(jet_firstghost_pt->at(k), jet_firstghost_eta->at(k), jet_firstghost_phi->at(k), jet_firstghost_e->at(k));
-                truthBJetIndices.at(j) = k;
-                j++;
-            }
-        }
+//        std::vector<TLorentzVector> truthBJets(4);
+//        std::vector<int> truthBJetIndices(4);
+//        std::size_t j = 0;
+//        for(std::size_t k = 0; k < jet_firstghost_pt->size(); ++k) {
+////            if (jet_firstghost_pt->size() < 10) break;
+//
+//            if (TMath::Abs(jet_firstghost_pdgId->at(k)) == 5) {
+//                truthBJets.at(j).SetPtEtaPhiE(jet_firstghost_pt->at(k), jet_firstghost_eta->at(k), jet_firstghost_phi->at(k), jet_firstghost_e->at(k));
+//                truthBJetIndices.at(j) = k;
+//                j++;
+//            }
+//        }
 
 //        std::sort(truthBJets.begin(), truthBJets.end(), [](TLorentzVector v1, TLorentzVector v2) {v1.Pt() > v2.Pt();}); // They should already be pt ordered as the jet collection is
 //        std::sort(truthBJets.begin(), truthBJets.end(), [](TLorentzVector v1, TLorentzVector v2) {v1.Pt() > v2.Pt();});
@@ -783,28 +795,112 @@ int test(std::string config_path) {
         truthTops.at(2).SetPtEtaPhiE(*truth_tbar1_pt, *truth_tbar1_eta, *truth_tbar1_phi, 172.5*1e3);
         truthTops.at(3).SetPtEtaPhiE(*truth_tbar2_pt, *truth_tbar2_eta, *truth_tbar2_phi, 172.5*1e3);
 
-        TLorentzVector child0_0_Vector = {*truth_top1_child0_pt, *truth_top1_child0_eta, *truth_top1_child0_phi, *truth_top1_child0_e };
-
-        int jetInd = -2;
-        float deltaR = 1000;
-        if (*truth_top1_isHad == 1) {
-            auto results = deltaRMatch(child0_0_Vector, *jet_pt, *jet_eta, *jet_phi, *jet_e);
-            jetInd = std::get<0> (results);
-            deltaR = std::get<1> (results);
-        }
-
-        topChild child0_0 = {
-                jetInd,
-                *truth_top1_child0_pdgid,
-                deltaR,
-                child0_0_Vector,
-                truthTops.at(0),
-                *truth_top1_isHad == 1
+        std::vector<bool> truthTops_areHad {
+            *truth_top1_isHad == 1,
+            *truth_top2_isHad == 1,
+            *truth_tbar1_isHad == 1,
+            *truth_tbar2_isHad == 1
         };
 
-        children.emplace_back( child0_0 );
+        TLorentzVector child0_0_Vector = {*truth_top1_child0_pt, *truth_top1_child0_eta, *truth_top1_child0_phi, *truth_top1_child0_e };
+        TLorentzVector child0_1_Vector = {*truth_top1_child1_pt, *truth_top1_child1_eta, *truth_top1_child1_phi, *truth_top1_child1_e };
+        TLorentzVector child0_2_Vector = {*truth_top1_child2_pt, *truth_top1_child2_eta, *truth_top1_child2_phi, *truth_top1_child2_e };
 
+        TLorentzVector child1_0_Vector = {*truth_top2_child0_pt, *truth_top2_child0_eta, *truth_top2_child0_phi, *truth_top2_child0_e };
+        TLorentzVector child1_1_Vector = {*truth_top2_child1_pt, *truth_top2_child1_eta, *truth_top2_child1_phi, *truth_top2_child1_e };
+        TLorentzVector child1_2_Vector = {*truth_top2_child2_pt, *truth_top2_child2_eta, *truth_top2_child2_phi, *truth_top2_child2_e };
 
+        TLorentzVector child2_0_Vector = {*truth_tbar1_child0_pt, *truth_tbar1_child0_eta, *truth_tbar1_child0_phi, *truth_tbar1_child0_e };
+        TLorentzVector child2_1_Vector = {*truth_tbar1_child1_pt, *truth_tbar1_child1_eta, *truth_tbar1_child1_phi, *truth_tbar1_child1_e };
+        TLorentzVector child2_2_Vector = {*truth_tbar1_child2_pt, *truth_tbar1_child2_eta, *truth_tbar1_child2_phi, *truth_tbar1_child2_e };
+
+        TLorentzVector child3_0_Vector = {*truth_tbar2_child0_pt, *truth_tbar2_child0_eta, *truth_tbar2_child0_phi, *truth_tbar2_child0_e };
+        TLorentzVector child3_1_Vector = {*truth_tbar2_child1_pt, *truth_tbar2_child1_eta, *truth_tbar2_child1_phi, *truth_tbar2_child1_e };
+        TLorentzVector child3_2_Vector = {*truth_tbar2_child2_pt, *truth_tbar2_child2_eta, *truth_tbar2_child2_phi, *truth_tbar2_child2_e };
+
+        std::vector<TLorentzVector> childrenVectors = {
+                child0_0_Vector, child0_1_Vector, child0_2_Vector,
+                child1_0_Vector, child1_1_Vector, child1_2_Vector,
+                child2_0_Vector, child2_1_Vector, child2_2_Vector,
+                child3_0_Vector, child3_1_Vector, child3_2_Vector,
+        };
+
+        std::vector<int> childrenPdgs = {
+            *truth_top1_child0_pdgid, *truth_top1_child1_pdgid, *truth_top1_child2_pdgid,
+            *truth_top2_child0_pdgid, *truth_top2_child1_pdgid, *truth_top2_child2_pdgid,
+            *truth_tbar1_child0_pdgid, *truth_tbar1_child1_pdgid, *truth_tbar1_child2_pdgid,
+            *truth_tbar2_child0_pdgid, *truth_tbar2_child1_pdgid, *truth_tbar2_child2_pdgid,
+        };
+
+        std::vector<top> enhancedTops(4);
+
+        for (size_t k = 0; k < childrenVectors.size(); k++) {
+            int jetInd = -2;
+            float deltaR = 1000;
+
+            if (TMath::Abs(childrenPdgs.at(k)) < 6) {
+                auto results = deltaRMatch(childrenVectors.at(k), *jet_pt, *jet_eta, *jet_phi, *jet_e);
+                jetInd = std::get<0> (results);
+                deltaR = std::get<1> (results);
+            }
+
+            topChild child = {
+                        jetInd,
+                        childrenPdgs.at(k),
+                        deltaR,
+                        childrenVectors.at(k),
+//                        truthTops.at(k / 3),
+                        truthTops_areHad.at( k / 3)
+            };
+        children.emplace_back( child);
+
+        }
+
+        for (size_t k = 0; k < enhancedTops.size(); k++) {
+            TLorentzVector bChild;
+            int bJetRecoInd = -2;
+            int childBInd = -2;
+
+            for (size_t j = 0; j < 3; j++) {
+                if(TMath::Abs(children.at(j + 3*k).pdgID) == 5) {
+                    bChild = children.at(j + 3*k).childVector;
+                    bJetRecoInd = children.at(j + 3*k).origJetIndex;
+                    childBInd = j + 3*k;
+                    break;
+                }
+            }
+
+            std::vector<topChild> ownChildren {
+                children.at(3*k + 0),
+                children.at(3*k + 1),
+                children.at(3*k + 2)
+            };
+
+            std::vector<int> recoChildIndices {
+                    children.at(3*k + 0).origJetIndex,
+                    children.at(3*k + 1).origJetIndex,
+                    children.at(3*k + 2).origJetIndex
+            };
+
+            if (bJetRecoInd < 0) {
+                std::cerr << "No Bjet found for top" << std::endl;
+                break;
+            }
+
+            top enhancedTop = {
+                    static_cast<float>(bChild.Pt()),
+                    childBInd,
+                    jet_pt->at(bJetRecoInd),
+                    bJetRecoInd,
+                    truthTops_areHad.at(k),
+                    truthTops.at(k),
+                    ownChildren,
+                    recoChildIndices
+            };
+
+            enhancedTops.at(k) = enhancedTop;
+
+        }
 
 
 
