@@ -16,6 +16,7 @@
 // ROOT includes
 #include "TFile.h"
 #include "TLorentzVector.h"
+//TODO: Switch to new and enhanced Lorentzvectors: https://root.cern.ch/doc/master/classROOT_1_1Math_1_1LorentzVector.html
 #include "TTreeReader.h"
 #include "TTreeReaderValue.h"
 #include "TRandom3.h"
@@ -24,11 +25,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <TH1F.h>
 
 struct topChild {
-    int origJetIndex;
-    int pdgID;
-    float matchDeltaR;
+    int recoJetIndex_iterativeChildReco;
+    int recoJetIndex_globalChildReco;
+    int recoJetIndex_globalChildFirstGhost;
+    int recoJetIndex_PDGglobalChildFirstGhost;
+    int recoJetIndex_PDGiterativeChildFirstGhost;
+    int childPDGId;
+    int ghostPDGId;
+    int PDGGhostPDGId;
+    float dR_iterativeChildReco;
+    float dR_globalChildReco;
+    float dR_globalChildFirstGhost;
+    float dR_PDGglobalChildFirstGhost;
+    float dR_PDGiterativeChildFirstGhost;
     TLorentzVector childVector;
 //    TLorentzVector truthTop;
     bool isHadronic;
@@ -43,18 +55,51 @@ struct top {
     TLorentzVector truthTop;
     std::vector<topChild> children;
     std::vector<int> recoChildrenIndices;
-};
+    TLorentzVector SumChildren;
+    TLorentzVector SumIterativePDGMatchedFirstGhosts;
+    float dR_top_SumChildren;
+    float dR_top_SumIterative;
+    float dR_SumChildren_SumIterative;
 
+};
 
 std::tuple<int,float> deltaRMatch(TLorentzVector& child, std::vector<float>& jet_pt, std::vector<float>& jet_eta, std::vector<float>& jet_phi, std::vector<float>& jet_e) {
     float minDR = 999.;
     size_t minDR_Ind;
     for (size_t i = 0; i < jet_pt.size(); i++) {
+
+        if(jet_pt.at(i) < 0) continue; // Needed for iterative matching
+
         TLorentzVector comp {
             jet_pt.at(i),
             jet_eta.at(i),
             jet_phi.at(i),
             jet_e.at(i)
+        };
+
+        float dR = child.DeltaR(comp);
+        if (dR < minDR) {
+            minDR = dR;
+            minDR_Ind = i;
+        }
+    }
+    return std::make_tuple(minDR_Ind, minDR);
+}
+
+std::tuple<int,float> deltaRMatchWPDGId(TLorentzVector& child, int childPDGId, std::vector<int>& jet_PDGIDs,  std::vector<float>& jet_pt, std::vector<float>& jet_eta, std::vector<float>& jet_phi, std::vector<float>& jet_e) {
+    float minDR = 999.;
+    size_t minDR_Ind;
+    for (size_t i = 0; i < jet_pt.size(); i++) {
+
+        if (childPDGId != jet_PDGIDs.at(i)) continue;
+
+        if(jet_pt.at(i) < 0) continue; // Needed for iterative matching
+
+        TLorentzVector comp {
+                jet_pt.at(i),
+                jet_eta.at(i),
+                jet_phi.at(i),
+                jet_e.at(i)
         };
 
         float dR = child.DeltaR(comp);
@@ -171,24 +216,32 @@ int test(std::string config_path) {
     TTreeReaderValue<float> weight_bTagSF_MV2c10_77(reader, "weight_bTagSF_MV2c10_77");
 
     // For 4t
+    // TODO: In the current version eta and phi of children are mixed up. "Fix" this manually here.
+    std::cout << "eta and phi still swapped!" << std::endl;
     TTreeReaderValue<float> truth_top1_pt(reader, "truth_top1_pt");
     TTreeReaderValue<float> truth_top1_eta(reader, "truth_top1_eta");
     TTreeReaderValue<float> truth_top1_phi(reader, "truth_top1_phi");
     TTreeReaderValue<int> truth_top1_isHad(reader, "truth_top1_isHad");
 
     TTreeReaderValue<float> truth_top1_child0_pt(reader, "truth_top1_child0_pt");
-    TTreeReaderValue<float> truth_top1_child0_eta(reader, "truth_top1_child0_eta");
-    TTreeReaderValue<float> truth_top1_child0_phi(reader, "truth_top1_child0_phi");
+//    TTreeReaderValue<float> truth_top1_child0_eta(reader, "truth_top1_child0_eta");
+//    TTreeReaderValue<float> truth_top1_child0_phi(reader, "truth_top1_child0_phi");
+    TTreeReaderValue<float> truth_top1_child0_eta(reader, "truth_top1_child0_phi");
+    TTreeReaderValue<float> truth_top1_child0_phi(reader, "truth_top1_child0_eta");
     TTreeReaderValue<float> truth_top1_child0_e(reader, "truth_top1_child0_e");
     TTreeReaderValue<int> truth_top1_child0_pdgid(reader, "truth_top1_child0_pdgid");
     TTreeReaderValue<float> truth_top1_child1_pt(reader, "truth_top1_child1_pt");
-    TTreeReaderValue<float> truth_top1_child1_eta(reader, "truth_top1_child1_eta");
-    TTreeReaderValue<float> truth_top1_child1_phi(reader, "truth_top1_child1_phi");
+//    TTreeReaderValue<float> truth_top1_child1_eta(reader, "truth_top1_child1_eta");
+//    TTreeReaderValue<float> truth_top1_child1_phi(reader, "truth_top1_child1_phi");
+    TTreeReaderValue<float> truth_top1_child1_eta(reader, "truth_top1_child1_phi");
+    TTreeReaderValue<float> truth_top1_child1_phi(reader, "truth_top1_child1_eta");
     TTreeReaderValue<float> truth_top1_child1_e(reader, "truth_top1_child1_e");
     TTreeReaderValue<int> truth_top1_child1_pdgid(reader, "truth_top1_child1_pdgid");
     TTreeReaderValue<float> truth_top1_child2_pt(reader, "truth_top1_child2_pt");
-    TTreeReaderValue<float> truth_top1_child2_eta(reader, "truth_top1_child2_eta");
-    TTreeReaderValue<float> truth_top1_child2_phi(reader, "truth_top1_child2_phi");
+//    TTreeReaderValue<float> truth_top1_child2_eta(reader, "truth_top1_child2_eta");
+//    TTreeReaderValue<float> truth_top1_child2_phi(reader, "truth_top1_child2_phi");
+    TTreeReaderValue<float> truth_top1_child2_eta(reader, "truth_top1_child2_phi");
+    TTreeReaderValue<float> truth_top1_child2_phi(reader, "truth_top1_child2_eta");
     TTreeReaderValue<float> truth_top1_child2_e(reader, "truth_top1_child2_e");
     TTreeReaderValue<int> truth_top1_child2_pdgid(reader, "truth_top1_child2_pdgid");
 
@@ -199,18 +252,24 @@ int test(std::string config_path) {
     TTreeReaderValue<int> truth_top2_isHad(reader, "truth_top2_isHad");
 
     TTreeReaderValue<float> truth_top2_child0_pt(reader, "truth_top2_child0_pt");
-    TTreeReaderValue<float> truth_top2_child0_eta(reader, "truth_top2_child0_eta");
-    TTreeReaderValue<float> truth_top2_child0_phi(reader, "truth_top2_child0_phi");
+//    TTreeReaderValue<float> truth_top2_child0_eta(reader, "truth_top2_child0_eta");
+//    TTreeReaderValue<float> truth_top2_child0_phi(reader, "truth_top2_child0_phi");
+    TTreeReaderValue<float> truth_top2_child0_eta(reader, "truth_top2_child0_phi");
+    TTreeReaderValue<float> truth_top2_child0_phi(reader, "truth_top2_child0_eta");
     TTreeReaderValue<float> truth_top2_child0_e(reader, "truth_top2_child0_e");
     TTreeReaderValue<int> truth_top2_child0_pdgid(reader, "truth_top2_child0_pdgid");
     TTreeReaderValue<float> truth_top2_child1_pt(reader, "truth_top2_child1_pt");
-    TTreeReaderValue<float> truth_top2_child1_eta(reader, "truth_top2_child1_eta");
-    TTreeReaderValue<float> truth_top2_child1_phi(reader, "truth_top2_child1_phi");
+//    TTreeReaderValue<float> truth_top2_child1_eta(reader, "truth_top2_child1_eta");
+//    TTreeReaderValue<float> truth_top2_child1_phi(reader, "truth_top2_child1_phi");
+    TTreeReaderValue<float> truth_top2_child1_eta(reader, "truth_top2_child1_phi");
+    TTreeReaderValue<float> truth_top2_child1_phi(reader, "truth_top2_child1_eta");
     TTreeReaderValue<float> truth_top2_child1_e(reader, "truth_top2_child1_e");
     TTreeReaderValue<int> truth_top2_child1_pdgid(reader, "truth_top2_child1_pdgid");
     TTreeReaderValue<float> truth_top2_child2_pt(reader, "truth_top2_child2_pt");
-    TTreeReaderValue<float> truth_top2_child2_eta(reader, "truth_top2_child2_eta");
-    TTreeReaderValue<float> truth_top2_child2_phi(reader, "truth_top2_child2_phi");
+//    TTreeReaderValue<float> truth_top2_child2_eta(reader, "truth_top2_child2_eta");
+//    TTreeReaderValue<float> truth_top2_child2_phi(reader, "truth_top2_child2_phi");
+    TTreeReaderValue<float> truth_top2_child2_eta(reader, "truth_top2_child2_phi");
+    TTreeReaderValue<float> truth_top2_child2_phi(reader, "truth_top2_child2_eta");
     TTreeReaderValue<float> truth_top2_child2_e(reader, "truth_top2_child2_e");
     TTreeReaderValue<int> truth_top2_child2_pdgid(reader, "truth_top2_child2_pdgid");
 
@@ -221,18 +280,24 @@ int test(std::string config_path) {
     TTreeReaderValue<int> truth_tbar1_isHad(reader, "truth_tbar1_isHad");
 
     TTreeReaderValue<float> truth_tbar1_child0_pt(reader, "truth_tbar1_child0_pt");
-    TTreeReaderValue<float> truth_tbar1_child0_eta(reader, "truth_tbar1_child0_eta");
-    TTreeReaderValue<float> truth_tbar1_child0_phi(reader, "truth_tbar1_child0_phi");
+//    TTreeReaderValue<float> truth_tbar1_child0_eta(reader, "truth_tbar1_child0_eta");
+//    TTreeReaderValue<float> truth_tbar1_child0_phi(reader, "truth_tbar1_child0_phi");
+    TTreeReaderValue<float> truth_tbar1_child0_eta(reader, "truth_tbar1_child0_phi");
+    TTreeReaderValue<float> truth_tbar1_child0_phi(reader, "truth_tbar1_child0_eta");
     TTreeReaderValue<float> truth_tbar1_child0_e(reader, "truth_tbar1_child0_e");
     TTreeReaderValue<int> truth_tbar1_child0_pdgid(reader, "truth_tbar1_child0_pdgid");
     TTreeReaderValue<float> truth_tbar1_child1_pt(reader, "truth_tbar1_child1_pt");
-    TTreeReaderValue<float> truth_tbar1_child1_eta(reader, "truth_tbar1_child1_eta");
-    TTreeReaderValue<float> truth_tbar1_child1_phi(reader, "truth_tbar1_child1_phi");
+//    TTreeReaderValue<float> truth_tbar1_child1_eta(reader, "truth_tbar1_child1_eta");
+//    TTreeReaderValue<float> truth_tbar1_child1_phi(reader, "truth_tbar1_child1_phi");
+    TTreeReaderValue<float> truth_tbar1_child1_eta(reader, "truth_tbar1_child1_phi");
+    TTreeReaderValue<float> truth_tbar1_child1_phi(reader, "truth_tbar1_child1_eta");
     TTreeReaderValue<float> truth_tbar1_child1_e(reader, "truth_tbar1_child1_e");
     TTreeReaderValue<int> truth_tbar1_child1_pdgid(reader, "truth_tbar1_child1_pdgid");
     TTreeReaderValue<float> truth_tbar1_child2_pt(reader, "truth_tbar1_child2_pt");
-    TTreeReaderValue<float> truth_tbar1_child2_eta(reader, "truth_tbar1_child2_eta");
-    TTreeReaderValue<float> truth_tbar1_child2_phi(reader, "truth_tbar1_child2_phi");
+//    TTreeReaderValue<float> truth_tbar1_child2_eta(reader, "truth_tbar1_child2_eta");
+//    TTreeReaderValue<float> truth_tbar1_child2_phi(reader, "truth_tbar1_child2_phi");
+    TTreeReaderValue<float> truth_tbar1_child2_eta(reader, "truth_tbar1_child2_phi");
+    TTreeReaderValue<float> truth_tbar1_child2_phi(reader, "truth_tbar1_child2_eta");
     TTreeReaderValue<float> truth_tbar1_child2_e(reader, "truth_tbar1_child2_e");
     TTreeReaderValue<int> truth_tbar1_child2_pdgid(reader, "truth_tbar1_child2_pdgid");
 
@@ -242,18 +307,24 @@ int test(std::string config_path) {
     TTreeReaderValue<float> truth_tbar2_phi(reader, "truth_tbar2_phi");
     TTreeReaderValue<int> truth_tbar2_isHad(reader, "truth_tbar2_isHad");
     TTreeReaderValue<float> truth_tbar2_child0_pt(reader, "truth_tbar2_child0_pt");
-    TTreeReaderValue<float> truth_tbar2_child0_eta(reader, "truth_tbar2_child0_eta");
-    TTreeReaderValue<float> truth_tbar2_child0_phi(reader, "truth_tbar2_child0_phi");
+//    TTreeReaderValue<float> truth_tbar2_child0_eta(reader, "truth_tbar2_child0_eta");
+//    TTreeReaderValue<float> truth_tbar2_child0_phi(reader, "truth_tbar2_child0_phi");
+    TTreeReaderValue<float> truth_tbar2_child0_eta(reader, "truth_tbar2_child0_phi");
+    TTreeReaderValue<float> truth_tbar2_child0_phi(reader, "truth_tbar2_child0_eta");
     TTreeReaderValue<float> truth_tbar2_child0_e(reader, "truth_tbar2_child0_e");
     TTreeReaderValue<int> truth_tbar2_child0_pdgid(reader, "truth_tbar2_child0_pdgid");
     TTreeReaderValue<float> truth_tbar2_child1_pt(reader, "truth_tbar2_child1_pt");
-    TTreeReaderValue<float> truth_tbar2_child1_eta(reader, "truth_tbar2_child1_eta");
-    TTreeReaderValue<float> truth_tbar2_child1_phi(reader, "truth_tbar2_child1_phi");
+//    TTreeReaderValue<float> truth_tbar2_child1_eta(reader, "truth_tbar2_child1_eta");
+//    TTreeReaderValue<float> truth_tbar2_child1_phi(reader, "truth_tbar2_child1_phi");
+    TTreeReaderValue<float> truth_tbar2_child1_eta(reader, "truth_tbar2_child1_phi");
+    TTreeReaderValue<float> truth_tbar2_child1_phi(reader, "truth_tbar2_child1_eta");
     TTreeReaderValue<float> truth_tbar2_child1_e(reader, "truth_tbar2_child1_e");
     TTreeReaderValue<int> truth_tbar2_child1_pdgid(reader, "truth_tbar2_child1_pdgid");
     TTreeReaderValue<float> truth_tbar2_child2_pt(reader, "truth_tbar2_child2_pt");
-    TTreeReaderValue<float> truth_tbar2_child2_eta(reader, "truth_tbar2_child2_eta");
-    TTreeReaderValue<float> truth_tbar2_child2_phi(reader, "truth_tbar2_child2_phi");
+//    TTreeReaderValue<float> truth_tbar2_child2_eta(reader, "truth_tbar2_child2_eta");
+//    TTreeReaderValue<float> truth_tbar2_child2_phi(reader, "truth_tbar2_child2_phi");
+    TTreeReaderValue<float> truth_tbar2_child2_eta(reader, "truth_tbar2_child2_phi");
+    TTreeReaderValue<float> truth_tbar2_child2_phi(reader, "truth_tbar2_child2_eta");
     TTreeReaderValue<float> truth_tbar2_child2_e(reader, "truth_tbar2_child2_e");
     TTreeReaderValue<int> truth_tbar2_child2_pdgid(reader, "truth_tbar2_child2_pdgid");
 //-----------------------
@@ -719,7 +790,29 @@ int test(std::string config_path) {
     outTree.Branch("mu_true_eta", &cp_mu_true_eta);
     outTree.Branch("mu_true_pt", &cp_mu_true_pt);
 
+    std::vector<float> globalChildRecoDR;
+    std::vector<float> iterativeChildRecoDR;
+    std::vector<int> globalChildRecoIndMult;
+    bool iterativeChildRecoDR_lt_01;
 
+    std::vector<float> globalChildFirstGhostDR;
+    std::vector<float> globalPDGChildFirstGhostDR;
+    std::vector<int> globalPDGChildFirstGhostIndMult;
+
+    std::vector<float> iterativePDGChildFirstGhostDRs;
+
+
+    outTree.Branch("evt_globalChildRecoDR", &globalChildRecoDR);
+    outTree.Branch("evt_iterativeChildRecoDR", &iterativeChildRecoDR);
+    outTree.Branch("evt_globalChildRecoIndMult", &globalChildRecoIndMult);
+    outTree.Branch("evt_iterativeChildRecoDR_lt_01", &iterativeChildRecoDR_lt_01);
+
+
+    outTree.Branch("evt_globalChildFirstGhostDR", &globalChildFirstGhostDR);
+    outTree.Branch("evt_globalPDGChildFirstGhostDR", &globalPDGChildFirstGhostDR);
+    outTree.Branch("evt_globalPDGChildFirstGhostIndMult", &globalPDGChildFirstGhostIndMult);
+
+    outTree.Branch("evt_iterativePDGChildFirstGhostDR", &iterativePDGChildFirstGhostDRs);
 
     time_t rawtime = time(NULL);
     struct tm * timeinfo;
@@ -729,7 +822,15 @@ int test(std::string config_path) {
 
     while (reader.Next()) {
 
+        globalChildRecoDR.clear();
+        globalChildRecoIndMult.clear();
+        iterativeChildRecoDR.clear();
 
+        globalChildFirstGhostDR.clear();
+        globalPDGChildFirstGhostDR.clear();
+        globalPDGChildFirstGhostIndMult.clear();
+
+        iterativePDGChildFirstGhostDRs.clear();
 
         KLFitter::Particles particles{};
 
@@ -790,10 +891,10 @@ int test(std::string config_path) {
 
 
         std::vector<TLorentzVector> truthTops (4);
-        truthTops.at(0).SetPtEtaPhiE(*truth_top1_pt, *truth_top1_eta, *truth_top1_phi, 172.5*1e3);
-        truthTops.at(1).SetPtEtaPhiE(*truth_top2_pt, *truth_top2_eta, *truth_top2_phi, 172.5*1e3);
-        truthTops.at(2).SetPtEtaPhiE(*truth_tbar1_pt, *truth_tbar1_eta, *truth_tbar1_phi, 172.5*1e3);
-        truthTops.at(3).SetPtEtaPhiE(*truth_tbar2_pt, *truth_tbar2_eta, *truth_tbar2_phi, 172.5*1e3);
+        truthTops.at(0).SetPtEtaPhiM(*truth_top1_pt, *truth_top1_eta, *truth_top1_phi, 172.5*1e3);
+        truthTops.at(1).SetPtEtaPhiM(*truth_top2_pt, *truth_top2_eta, *truth_top2_phi, 172.5*1e3);
+        truthTops.at(2).SetPtEtaPhiM(*truth_tbar1_pt, *truth_tbar1_eta, *truth_tbar1_phi, 172.5*1e3);
+        truthTops.at(3).SetPtEtaPhiM(*truth_tbar2_pt, *truth_tbar2_eta, *truth_tbar2_phi, 172.5*1e3);
 
         std::vector<bool> truthTops_areHad {
             *truth_top1_isHad == 1,
@@ -802,21 +903,33 @@ int test(std::string config_path) {
             *truth_tbar2_isHad == 1
         };
 
-        TLorentzVector child0_0_Vector = {*truth_top1_child0_pt, *truth_top1_child0_eta, *truth_top1_child0_phi, *truth_top1_child0_e };
-        TLorentzVector child0_1_Vector = {*truth_top1_child1_pt, *truth_top1_child1_eta, *truth_top1_child1_phi, *truth_top1_child1_e };
-        TLorentzVector child0_2_Vector = {*truth_top1_child2_pt, *truth_top1_child2_eta, *truth_top1_child2_phi, *truth_top1_child2_e };
+        TLorentzVector child0_0_Vector = {};
+        child0_0_Vector.SetPtEtaPhiE(*truth_top1_child0_pt, *truth_top1_child0_eta, *truth_top1_child0_phi, *truth_top1_child0_e);
+        TLorentzVector child0_1_Vector = {};
+        child0_1_Vector.SetPtEtaPhiE(*truth_top1_child1_pt, *truth_top1_child1_eta, *truth_top1_child1_phi, *truth_top1_child1_e);
+        TLorentzVector child0_2_Vector = {};
+        child0_2_Vector.SetPtEtaPhiE(*truth_top1_child2_pt, *truth_top1_child2_eta, *truth_top1_child2_phi, *truth_top1_child2_e);
 
-        TLorentzVector child1_0_Vector = {*truth_top2_child0_pt, *truth_top2_child0_eta, *truth_top2_child0_phi, *truth_top2_child0_e };
-        TLorentzVector child1_1_Vector = {*truth_top2_child1_pt, *truth_top2_child1_eta, *truth_top2_child1_phi, *truth_top2_child1_e };
-        TLorentzVector child1_2_Vector = {*truth_top2_child2_pt, *truth_top2_child2_eta, *truth_top2_child2_phi, *truth_top2_child2_e };
+        TLorentzVector child1_0_Vector = {};
+        child1_0_Vector.SetPtEtaPhiE(*truth_top2_child0_pt, *truth_top2_child0_eta, *truth_top2_child0_phi, *truth_top2_child0_e);
+        TLorentzVector child1_1_Vector = {};
+        child1_1_Vector.SetPtEtaPhiE(*truth_top2_child1_pt, *truth_top2_child1_eta, *truth_top2_child1_phi, *truth_top2_child1_e);
+        TLorentzVector child1_2_Vector = {};
+        child1_2_Vector.SetPtEtaPhiE(*truth_top2_child2_pt, *truth_top2_child2_eta, *truth_top2_child2_phi, *truth_top2_child2_e);
 
-        TLorentzVector child2_0_Vector = {*truth_tbar1_child0_pt, *truth_tbar1_child0_eta, *truth_tbar1_child0_phi, *truth_tbar1_child0_e };
-        TLorentzVector child2_1_Vector = {*truth_tbar1_child1_pt, *truth_tbar1_child1_eta, *truth_tbar1_child1_phi, *truth_tbar1_child1_e };
-        TLorentzVector child2_2_Vector = {*truth_tbar1_child2_pt, *truth_tbar1_child2_eta, *truth_tbar1_child2_phi, *truth_tbar1_child2_e };
+        TLorentzVector child2_0_Vector = {};
+        child2_0_Vector.SetPtEtaPhiE(*truth_tbar1_child0_pt, *truth_tbar1_child0_eta, *truth_tbar1_child0_phi, *truth_tbar1_child0_e);
+        TLorentzVector child2_1_Vector = {};
+        child2_1_Vector.SetPtEtaPhiE(*truth_tbar1_child1_pt, *truth_tbar1_child1_eta, *truth_tbar1_child1_phi, *truth_tbar1_child1_e);
+        TLorentzVector child2_2_Vector = {};
+        child2_2_Vector.SetPtEtaPhiE(*truth_tbar1_child2_pt, *truth_tbar1_child2_eta, *truth_tbar1_child2_phi, *truth_tbar1_child2_e);
 
-        TLorentzVector child3_0_Vector = {*truth_tbar2_child0_pt, *truth_tbar2_child0_eta, *truth_tbar2_child0_phi, *truth_tbar2_child0_e };
-        TLorentzVector child3_1_Vector = {*truth_tbar2_child1_pt, *truth_tbar2_child1_eta, *truth_tbar2_child1_phi, *truth_tbar2_child1_e };
-        TLorentzVector child3_2_Vector = {*truth_tbar2_child2_pt, *truth_tbar2_child2_eta, *truth_tbar2_child2_phi, *truth_tbar2_child2_e };
+        TLorentzVector child3_0_Vector = {};
+        child3_0_Vector.SetPtEtaPhiE(*truth_tbar2_child0_pt, *truth_tbar2_child0_eta, *truth_tbar2_child0_phi, *truth_tbar2_child0_e);
+        TLorentzVector child3_1_Vector = {};
+        child3_1_Vector.SetPtEtaPhiE(*truth_tbar2_child1_pt, *truth_tbar2_child1_eta, *truth_tbar2_child1_phi, *truth_tbar2_child1_e);
+        TLorentzVector child3_2_Vector = {};
+        child3_2_Vector.SetPtEtaPhiE(*truth_tbar2_child2_pt, *truth_tbar2_child2_eta, *truth_tbar2_child2_phi, *truth_tbar2_child2_e);
 
         std::vector<TLorentzVector> childrenVectors = {
                 child0_0_Vector, child0_1_Vector, child0_2_Vector,
@@ -834,27 +947,124 @@ int test(std::string config_path) {
 
         std::vector<top> enhancedTops(4);
 
+
+        std::vector<int> globalChildRecoInds = {};
+        std::vector<int> globalPDGChildFirstGhostInds = {};
+        std::vector<float> mutable_jet_pt = *jet_pt;
+        std::vector<float> mutable_jet_eta = *jet_eta;
+        std::vector<float> mutable_jet_phi = *jet_phi;
+        std::vector<float> mutable_jet_e = *jet_e;
+
+        std::vector<float> mutable_jet_firstghost_pt = *jet_firstghost_pt;
+        std::vector<float> mutable_jet_firstghost_eta = *jet_firstghost_eta;
+        std::vector<float> mutable_jet_firstghost_phi = *jet_firstghost_phi;
+        std::vector<float> mutable_jet_firstghost_e = *jet_firstghost_e;
+        std::vector<int> mutable_jet_firstghost_pdgId = *jet_firstghost_pdgId;
+
+        std::vector<std::tuple<int, float, float, TLorentzVector>> parentGhostVectors = {};
+        for (size_t k =0 ; k< jet_parentghost_pt->size(); k++) {
+            TLorentzVector v = {jet_parentghost_pt->at(k),
+                                jet_parentghost_eta->at(k),
+                                jet_parentghost_phi->at(k),
+                                jet_parentghost_e->at(k),
+                                };
+            auto tup = std::make_tuple(jet_parentghost_pdgId->at(k), v.Pt(), v.M(), v);
+            parentGhostVectors.emplace_back(tup);
+        }
+
+
         for (size_t k = 0; k < childrenVectors.size(); k++) {
             int jetInd = -2;
+            int globalJetInd = -2;
+            float globaldeltaR = 1000;
             float deltaR = 1000;
+            float childFirstGhostDR = 1000;
+            int childFirstGhostInd = -2;
+            float PDGChildFirstGhostDR = 1000;
+            int PDGChildFirstGhostInd = -2;
+            int iterativePDGChildFirstGhostInd = -2;
+            float iterativePDGChildFirstGhostDR = 1000;
 
             if (TMath::Abs(childrenPdgs.at(k)) < 6) {
+                // Rematch truth to reco.. does not look good on purely dR!
+
+                // This is the real minimum..and values are overwritten. Next is the iterative minimum
                 auto results = deltaRMatch(childrenVectors.at(k), *jet_pt, *jet_eta, *jet_phi, *jet_e);
+                globalJetInd = std::get<0> (results);
+                globaldeltaR = std::get<1> (results);
+                if (jetInd != -2) globalChildRecoInds.emplace_back(jetInd);
+                globalChildRecoDR.emplace_back(deltaR);
+
+                // Iterative Minimum. First come, first serve
+                results = deltaRMatch(childrenVectors.at(k), mutable_jet_pt,mutable_jet_eta,mutable_jet_phi,mutable_jet_e);
                 jetInd = std::get<0> (results);
                 deltaR = std::get<1> (results);
+                mutable_jet_pt.at(jetInd) = -1;
+
+                iterativeChildRecoDR.emplace_back(deltaR);
+
+
+                // Now match child to firstghost. Should be 0. -> but isn't
+                results = deltaRMatch(childrenVectors.at(k), *jet_firstghost_pt,*jet_firstghost_eta,*jet_firstghost_phi,*jet_firstghost_e);
+                childFirstGhostInd = std::get<0> (results);
+                childFirstGhostDR = std::get<1> (results);
+
+                globalChildFirstGhostDR.emplace_back(childFirstGhostDR);
+
+                // Now match child to firstghost with PDG
+                results = deltaRMatchWPDGId(childrenVectors.at(k),childrenPdgs.at(k), *jet_firstghost_pdgId,  *jet_firstghost_pt,*jet_firstghost_eta,*jet_firstghost_phi,*jet_firstghost_e);
+                PDGChildFirstGhostInd = std::get<0> (results);
+                PDGChildFirstGhostDR = std::get<1> (results);
+
+                globalPDGChildFirstGhostDR.emplace_back(childFirstGhostDR);
+                globalPDGChildFirstGhostInds.emplace_back(PDGChildFirstGhostInd);
+
+
+                // Now match child to firstghost with PDG and iteratively
+                results = deltaRMatchWPDGId(childrenVectors.at(k),childrenPdgs.at(k), mutable_jet_firstghost_pdgId,  mutable_jet_firstghost_pt,mutable_jet_firstghost_eta,mutable_jet_firstghost_phi,mutable_jet_firstghost_e);
+
+                iterativePDGChildFirstGhostInd = std::get<0> (results);
+                iterativePDGChildFirstGhostDR = std::get<1> (results);
+
+                mutable_jet_firstghost_pt.at(iterativePDGChildFirstGhostInd) = -1;
+                iterativePDGChildFirstGhostDRs.emplace_back(iterativePDGChildFirstGhostDR);
+
+
             }
 
             topChild child = {
                         jetInd,
+                        globalJetInd,
+                        childFirstGhostInd,
+                        PDGChildFirstGhostInd,
+                        iterativePDGChildFirstGhostInd,
                         childrenPdgs.at(k),
+                        childFirstGhostInd >= 0 ? jet_firstghost_pdgId->at(childFirstGhostInd) : -99,
+                        PDGChildFirstGhostInd >= 0 ? jet_firstghost_pdgId->at(PDGChildFirstGhostInd) : -99,
                         deltaR,
+                        globaldeltaR,
+                        childFirstGhostDR,
+                        PDGChildFirstGhostDR,
+                        iterativePDGChildFirstGhostDR,
                         childrenVectors.at(k),
-//                        truthTops.at(k / 3),
                         truthTops_areHad.at( k / 3)
             };
         children.emplace_back( child);
 
         }
+
+        // Measure to show just how bad the matching is!
+        std::map<int,int> multiplicities;
+        std::for_each(globalChildRecoInds.begin(), globalChildRecoInds.end(), [&multiplicities](int val) {multiplicities[val]++;});
+        std::for_each(multiplicities.begin(), multiplicities.end(), [&globalChildRecoIndMult](std::pair<int,int> val) {globalChildRecoIndMult.emplace_back(val.second);});
+
+        int count = std::count_if(iterativeChildRecoDR.begin(), iterativeChildRecoDR.end(), [] (float val) {return val >= 0.01;});
+        iterativeChildRecoDR_lt_01 = count == 0;
+
+        // Same for global PDG ChildFirstghost
+        multiplicities.clear();
+        std::for_each(globalPDGChildFirstGhostInds.begin(), globalPDGChildFirstGhostInds.end(), [&multiplicities](int val) {multiplicities[val]++;});
+        std::for_each(multiplicities.begin(), multiplicities.end(), [&globalPDGChildFirstGhostIndMult](std::pair<int,int> val) {globalPDGChildFirstGhostIndMult.emplace_back(val.second);});
 
         for (size_t k = 0; k < enhancedTops.size(); k++) {
             TLorentzVector bChild;
@@ -862,9 +1072,9 @@ int test(std::string config_path) {
             int childBInd = -2;
 
             for (size_t j = 0; j < 3; j++) {
-                if(TMath::Abs(children.at(j + 3*k).pdgID) == 5) {
+                if(TMath::Abs(children.at(j + 3*k).childPDGId) == 5) {
                     bChild = children.at(j + 3*k).childVector;
-                    bJetRecoInd = children.at(j + 3*k).origJetIndex;
+                    bJetRecoInd = children.at(j + 3*k).recoJetIndex_globalChildFirstGhost;
                     childBInd = j + 3*k;
                     break;
                 }
@@ -877,14 +1087,43 @@ int test(std::string config_path) {
             };
 
             std::vector<int> recoChildIndices {
-                    children.at(3*k + 0).origJetIndex,
-                    children.at(3*k + 1).origJetIndex,
-                    children.at(3*k + 2).origJetIndex
+                    children.at(3*k + 0).recoJetIndex_globalChildFirstGhost,
+                    children.at(3*k + 1).recoJetIndex_globalChildFirstGhost,
+                    children.at(3*k + 2).recoJetIndex_globalChildFirstGhost
             };
 
             if (bJetRecoInd < 0) {
                 std::cerr << "No Bjet found for top" << std::endl;
                 break;
+            }
+
+            TLorentzVector SumChildren = children.at(3*k + 0).childVector
+                    + children.at(3*k + 1).childVector
+                    + children.at(3*k + 2).childVector;
+
+            std::vector<TLorentzVector> iterativePDGMatchedFirstGhosts {};
+            for (size_t j = 0; j< 3; j++ ) {
+                topChild child = children.at(3 * k + j);
+                int ind = child.recoJetIndex_PDGiterativeChildFirstGhost;
+                if (ind < 0) {
+                    continue;
+                } else {
+
+                    TLorentzVector vecci = {
+                            jet_firstghost_pt->at(ind),
+                            jet_firstghost_eta->at(ind),
+                            jet_firstghost_phi->at(ind),
+                            jet_firstghost_e->at(ind),
+                    };
+                    iterativePDGMatchedFirstGhosts.emplace_back(vecci);
+                }
+            }
+
+            TLorentzVector sumPDGetc = {};
+            if (iterativePDGMatchedFirstGhosts.size() == 3) {
+                sumPDGetc = iterativePDGMatchedFirstGhosts.at(0)
+                            + iterativePDGMatchedFirstGhosts.at(1)
+                            + iterativePDGMatchedFirstGhosts.at(2);
             }
 
             top enhancedTop = {
@@ -895,7 +1134,12 @@ int test(std::string config_path) {
                     truthTops_areHad.at(k),
                     truthTops.at(k),
                     ownChildren,
-                    recoChildIndices
+                    recoChildIndices,
+                    SumChildren,
+                    sumPDGetc,
+                    static_cast<float>(truthTops.at(k).DeltaR(SumChildren)),
+                    static_cast<float>(truthTops.at(k).DeltaR(sumPDGetc)),
+                    static_cast<float>(SumChildren.DeltaR(sumPDGetc))
             };
 
             enhancedTops.at(k) = enhancedTop;
