@@ -63,6 +63,23 @@ struct top {
 
 };
 
+void WMatchs(std::vector<std::tuple<std::tuple<int,int>, TLorentzVector>>& Ws, std::vector<std::tuple<int, TLorentzVector>> Wvecs) {
+    while (Wvecs.size() > 1) {
+        auto back = Wvecs.back();
+        Wvecs.pop_back();
+
+        for (auto& W : Wvecs) {
+            if (std::get<1>(W).M() == std::get<1>(back).M() && !(std::get<0>(W) == std::get<0>(back))) {
+                Ws.emplace_back(
+                        std::make_tuple(std::make_tuple(std::get<0>(W), std::get<0>(back)), std::get<1>(W))
+                );
+                std::remove(Wvecs.begin(), Wvecs.end(), W);
+                break;
+            }
+        }
+    }
+}
+
 std::tuple<int,float> deltaRMatch(TLorentzVector& child, std::vector<float>& jet_pt, std::vector<float>& jet_eta, std::vector<float>& jet_phi, std::vector<float>& jet_e) {
     float minDR = 999.;
     size_t minDR_Ind;
@@ -174,6 +191,14 @@ int test(std::string config_path) {
 
     TTreeReader reader(chain);
 //    TTreeReader reader("nominal_Loose", inFile);
+
+    TTreeReaderValue<std::vector<int>> jet_parentghost_top_barcode(reader, "jet_parentghost_top_barcode");
+    TTreeReaderValue<std::vector<int>> truth_pdgid(reader, "truth_pdgid");
+    TTreeReaderValue<std::vector<int>> truth_barcode(reader, "truth_barcode");
+    TTreeReaderValue<std::vector<float>> truth_pt(reader, "truth_pt");
+    TTreeReaderValue<std::vector<float>> truth_eta(reader, "truth_eta");
+    TTreeReaderValue<std::vector<float>> truth_phi(reader, "truth_phi");
+    TTreeReaderValue<std::vector<float>> truth_m(reader, "truth_m");
 
     TTreeReaderValue<std::vector<float>> jet_pt(reader, "jet_pt");
     TTreeReaderValue<std::vector<float>> jet_eta(reader, "jet_eta");
@@ -971,6 +996,176 @@ int test(std::string config_path) {
             auto tup = std::make_tuple(jet_parentghost_pdgId->at(k), v.Pt(), v.M(), v);
             parentGhostVectors.emplace_back(tup);
         }
+
+
+        std::vector<std::tuple<int, TLorentzVector>> Wvecs = {};
+        for (size_t k =0 ; k< jet_parentghost_pt->size(); k++) {
+            if (TMath::Abs(jet_parentghost_pdgId->at(k)) == 24) {
+            TLorentzVector Wv = {jet_parentghost_pt->at(k),
+                                jet_parentghost_eta->at(k),
+                                jet_parentghost_phi->at(k),
+                                jet_parentghost_e->at(k)
+            };
+            auto tup = std::make_tuple(k, Wv);
+            Wvecs.emplace_back(tup);
+            }
+        }
+
+//        std::vector<std::tuple<int, TLorentzVector>> mutable_Wvecs = Wvecs;
+        std::vector<std::tuple<std::tuple<int,int>, TLorentzVector>> res = {};
+        WMatchs(res, Wvecs);
+
+
+
+//        std::vector<std::tuple<int, float, float, TLorentzVector>> condensed_Wvecs = {};
+//        for (auto W : Wvecs) {
+//            if (mutable_Wvecs.empty()) break;
+//
+//            for (auto mutW : mutable_Wvecs) {
+//                if (std::get<0>(W) == std::get<0>(mutW)) continue;
+//                else if (std::get<1>(W) == std::get<1>(mutW))
+//                    std::tuple<int, int> indices = std::make_tuple(std::get<0>(W), std::get<1>(mutW));
+//                    condensed_Wvecs.emplace_back()
+//
+//
+//            }
+//
+//        }
+
+
+// lets test something..
+
+// AWESOME AS FUCK this seems to work. It seems I can use the parentghost top barcode to match reoc jets to truth objects where the truth objects are then in the truth container.
+// This way I would need to check which jets have the same top barcode and should get my triplets. Let's do this.
+    std::map<int, std::vector<int>> tripletMap = {};
+        for (int k =0 ; k < jet_parentghost_top_barcode->size(); k++) {
+            auto key = jet_parentghost_top_barcode->at(k);
+            auto search = tripletMap.find(key);
+            if (search == tripletMap.end()) {
+                tripletMap[key] = {k};
+            } else {
+                tripletMap[key].emplace_back(k);
+            }
+        }
+
+    std::cout << "help";
+//        for (size_t k =0 ; k< jet_parentghost_top_barcode->size(); k++) {
+//            //match parentghost to truth
+//            int truthInd = -1;
+//            for( size_t j=0; j< truth_barcode->size() ; j++) {
+//                if (jet_parentghost_top_barcode->at(k) == truth_barcode->at(j)) {
+//                    truthInd = j;
+//                    break;
+//                }
+//            }
+//
+//               if (truthInd < 0 ) {
+//                   std::cerr << "not good." << std::endl;
+//                   return -1;
+//               }
+//
+//               if (TMath::Abs(truth_pdgid->at(truthInd)) !=6) {
+//                   std::cerr << "not good." << std::endl;
+//                   continue;
+//               }
+//
+//               TLorentzVector truthTop = {};
+//               truthTop.SetPtEtaPhiM(truth_pt->at(truthInd),
+//                                     truth_eta->at(truthInd),
+//                                     truth_phi->at(truthInd),
+//                                     truth_m->at(truthInd)
+//                       );
+//
+//               std::cout<< "Real Truth: " << truthTop.M() << " compared to: ";
+//               for (auto& top: truthTops) {
+//                   std::cout << truthTop.DeltaR(top) << ", ";
+//               }
+//               std::cout << std::endl;
+//
+//
+//            }
+
+
+
+//        std::vector<std::tuple<int, float, float, TLorentzVector>> bvecs = {};
+//        std::vector<std::tuple<int, int, int, float, TLorentzVector, TLorentzVector>> pottops = {};
+//        for (size_t k =0 ; k< jet_parentghost_pt->size(); k++) {
+//            if (TMath::Abs(jet_parentghost_pdgId->at(k)) == 6) {
+//                TLorentzVector bv = {jet_parentghost_pt->at(k),
+//                                     jet_parentghost_eta->at(k),
+//                                     jet_parentghost_phi->at(k),
+//                                     jet_parentghost_e->at(k)
+//                };
+//                auto tup = std::make_tuple(k, bv.Pt(), bv.M(), bv);
+//                bvecs.emplace_back(tup);
+//
+//                TLorentzVector firstB = {jet_firstghost_pt->at(k),
+//                                         jet_firstghost_eta->at(k),
+//                                         jet_firstghost_phi->at(k),
+//                                         jet_firstghost_e->at(k)
+//                };
+//
+////                std::cout << bv.E() << ", " << bv.Pt() << ", " << bv.M() << std::endl;
+//
+//                std::cout << "firstB: " << firstB.E() << " childrenB: " <<
+//                ", " << child0_0_Vector.E() <<
+//                ", " << child1_0_Vector.E() <<
+//                ", " << child2_0_Vector.E() <<
+//                ", " << child3_0_Vector.E() << std::endl;
+//
+////                std::cout << "parent: " << bv.M() << ", Children sum M: " << childrenVectors
+//
+//                for (size_t j = 0; j < res.size(); j++) {
+//                    TLorentzVector potTop = (std::get<1>(res.at(j)) + firstB);
+//
+////                    std::cout << potTop.E() - bv.E() << ", ";
+//                    std::cout << potTop.M() << ", ";
+//                }
+//                std::cout << std::endl;
+//
+////                for (size_t z = 0 ; z <truthTops.size();z++) {
+////                    std::cout << truthTops.at(z).E() - bv.E() << ", ";
+////                }
+////                std::cout << std::endl;
+//            }
+//        }
+//
+////                    auto potTop = bv;
+////
+////                    int minInd = -1;
+////                    float mindR = 1000;
+////                    for (size_t z = 0 ; z <truthTops.size();z++) {
+////                        float dR = potTop.DeltaR(truthTops.at(z));
+////                        if (dR < mindR) {
+////                            mindR = dR;
+////                            minInd = z;
+////                        }
+////                    }
+////
+//////                    auto bWtInd = std::make_tuple(k, j, minInd);
+//////                    auto temp = std::make_tuple(k,j,minInd, mindR, potTop, truthTops.at(minInd));
+////                    auto temp = std::make_tuple(k,-1,minInd, mindR, potTop, truthTops.at(minInd));
+////                    pottops.emplace_back(temp);
+////
+//////                    pottops.emplace_back(std::make_tuple(k, j, ));
+////                }
+////            }
+//
+//        std::cout << "Well.." << std::endl;
+//        for (auto& top: truthTops) {
+////            std::cout << top.E() << ", " << top.Pt() << ", " << top.M() << std::endl;
+//            std::cout << top.M() << ", ";
+//        }
+//        std::cout << std::endl << std::endl;
+//
+//
+//
+//
+//
+//
+//
+        std::cout << "Halt!" << std::endl;
+
 
 
         for (size_t k = 0; k < childrenVectors.size(); k++) {
