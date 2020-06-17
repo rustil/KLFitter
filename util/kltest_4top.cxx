@@ -27,59 +27,6 @@
 #include <time.h>
 #include <TH1F.h>
 
-struct topChild {
-    int recoJetIndex_iterativeChildReco;
-    int recoJetIndex_globalChildReco;
-    int recoJetIndex_globalChildFirstGhost;
-    int recoJetIndex_PDGglobalChildFirstGhost;
-    int recoJetIndex_PDGiterativeChildFirstGhost;
-    int childPDGId;
-    int ghostPDGId;
-    int PDGGhostPDGId;
-    float dR_iterativeChildReco;
-    float dR_globalChildReco;
-    float dR_globalChildFirstGhost;
-    float dR_PDGglobalChildFirstGhost;
-    float dR_PDGiterativeChildFirstGhost;
-    TLorentzVector childVector;
-//    TLorentzVector truthTop;
-    bool isHadronic;
-};
-
-struct top {
-    float truthBPt;
-    int truthBChildInd;
-    float recoBPt;
-    int recoBInd;
-    bool isHadronic;
-    TLorentzVector truthTop;
-    std::vector<topChild> children;
-    std::vector<int> recoChildrenIndices;
-    TLorentzVector SumChildren;
-    TLorentzVector SumIterativePDGMatchedFirstGhosts;
-    float dR_top_SumChildren;
-    float dR_top_SumIterative;
-    float dR_SumChildren_SumIterative;
-
-};
-
-void WMatchs(std::vector<std::tuple<std::tuple<int,int>, TLorentzVector>>& Ws, std::vector<std::tuple<int, TLorentzVector>> Wvecs) {
-    while (Wvecs.size() > 1) {
-        auto back = Wvecs.back();
-        Wvecs.pop_back();
-
-        for (auto& W : Wvecs) {
-            if (std::get<1>(W).M() == std::get<1>(back).M() && !(std::get<0>(W) == std::get<0>(back))) {
-                Ws.emplace_back(
-                        std::make_tuple(std::make_tuple(std::get<0>(W), std::get<0>(back)), std::get<1>(W))
-                );
-                std::remove(Wvecs.begin(), Wvecs.end(), W);
-                break;
-            }
-        }
-    }
-}
-
 std::tuple<int,float> deltaRMatch(TLorentzVector& child, std::vector<float>& jet_pt, std::vector<float>& jet_eta, std::vector<float>& jet_phi, std::vector<float>& jet_e) {
     float minDR = 999.;
     size_t minDR_Ind;
@@ -137,11 +84,11 @@ int test(std::string config_path) {
     KLFitter::Fitter fitter(permutationsFilePath);
     KLFitter::DetectorAtlas_8TeV detector{conf["detectorPath"].get<std::string>()};
 
-    int nPartonsMatched = -1;
+    int nPartonsToBeMatched = -1;
     if (conf.find("nPartonsMatched") != conf.end())
-     nPartonsMatched = conf["nPartonsMatched"].get<int>();
+        nPartonsToBeMatched = conf["nPartonsMatched"].get<int>();
 
-    std::cout << "nPartonsMatched: " << nPartonsMatched << std::endl;
+    std::cout << "nPartons to be matched: " << nPartonsToBeMatched << std::endl;
 
     if (!fitter.SetDetector(&detector)) {
         std::cerr << "ERROR: Failed to set detector! Aborting" << std::endl;
@@ -403,6 +350,20 @@ int test(std::string config_path) {
 //    TTree* outTree = (TTree*)inFile->Get("nominal_Loose")->Clone();
     TTree outTree("nominal", "nominal");
 
+    int evt_NTruthTopMatches;
+    int evt_NTruthMatchedJets;
+
+    int klf_NCorrectlyMatchedTops;
+    char klf_leptonicTopMatched;
+
+    std::map<int, std::vector<int>> truth_tripletMap;
+    std::map<int, TLorentzVector> truth_recoTopTruePermMap;
+    std::vector<std::vector<int>> klf_KLFtriplets;
+    std::map<int, std::vector<int>> klf_truthKLFMap;
+
+
+
+
     std::vector<float> cp_el_pt;
     std::vector<float> cp_el_eta;
     std::vector<float> cp_el_phi;
@@ -612,6 +573,18 @@ int test(std::string config_path) {
     unsigned int klf_highest_prob_index;
 
     // Prepare the output variables as branches of the tree.
+
+    outTree.Branch("evt_NTruthTopMatches", &evt_NTruthTopMatches);
+    outTree.Branch("evt_NTruthMatchedJets", &evt_NTruthMatchedJets);
+
+    outTree.Branch("klf_NCorrectlyMatchedTops", &klf_NCorrectlyMatchedTops);
+    outTree.Branch("klf_leptonicTopMatched", &klf_leptonicTopMatched);
+
+    outTree.Branch("truth_tripletMap", &truth_tripletMap, 32000, 0);
+    outTree.Branch("truth_recoTopTruePermMap", &truth_recoTopTruePermMap, 32000, 0);
+    outTree.Branch("klf_KLFtriplets", &klf_KLFtriplets, 32000, 0);
+    outTree.Branch("klf_truthKLFMap", &klf_truthKLFMap, 32000, 0);
+
     outTree.Branch("klf_bhad1_pt", &klf_bhad1_pt);
     outTree.Branch("klf_bhad1_eta", &klf_bhad1_eta);
     outTree.Branch("klf_bhad1_phi", &klf_bhad1_phi);
@@ -815,29 +788,29 @@ int test(std::string config_path) {
     outTree.Branch("mu_true_eta", &cp_mu_true_eta);
     outTree.Branch("mu_true_pt", &cp_mu_true_pt);
 
-    std::vector<float> globalChildRecoDR;
-    std::vector<float> iterativeChildRecoDR;
-    std::vector<int> globalChildRecoIndMult;
-    bool iterativeChildRecoDR_lt_01;
-
-    std::vector<float> globalChildFirstGhostDR;
-    std::vector<float> globalPDGChildFirstGhostDR;
-    std::vector<int> globalPDGChildFirstGhostIndMult;
-
-    std::vector<float> iterativePDGChildFirstGhostDRs;
-
-
-    outTree.Branch("evt_globalChildRecoDR", &globalChildRecoDR);
-    outTree.Branch("evt_iterativeChildRecoDR", &iterativeChildRecoDR);
-    outTree.Branch("evt_globalChildRecoIndMult", &globalChildRecoIndMult);
-    outTree.Branch("evt_iterativeChildRecoDR_lt_01", &iterativeChildRecoDR_lt_01);
-
-
-    outTree.Branch("evt_globalChildFirstGhostDR", &globalChildFirstGhostDR);
-    outTree.Branch("evt_globalPDGChildFirstGhostDR", &globalPDGChildFirstGhostDR);
-    outTree.Branch("evt_globalPDGChildFirstGhostIndMult", &globalPDGChildFirstGhostIndMult);
-
-    outTree.Branch("evt_iterativePDGChildFirstGhostDR", &iterativePDGChildFirstGhostDRs);
+//    std::vector<float> globalChildRecoDR;
+//    std::vector<float> iterativeChildRecoDR;
+//    std::vector<int> globalChildRecoIndMult;
+//    bool iterativeChildRecoDR_lt_01;
+//
+//    std::vector<float> globalChildFirstGhostDR;
+//    std::vector<float> globalPDGChildFirstGhostDR;
+//    std::vector<int> globalPDGChildFirstGhostIndMult;
+//
+//    std::vector<float> iterativePDGChildFirstGhostDRs;
+//
+//
+//    outTree.Branch("evt_globalChildRecoDR", &globalChildRecoDR);
+//    outTree.Branch("evt_iterativeChildRecoDR", &iterativeChildRecoDR);
+//    outTree.Branch("evt_globalChildRecoIndMult", &globalChildRecoIndMult);
+//    outTree.Branch("evt_iterativeChildRecoDR_lt_01", &iterativeChildRecoDR_lt_01);
+//
+//
+//    outTree.Branch("evt_globalChildFirstGhostDR", &globalChildFirstGhostDR);
+//    outTree.Branch("evt_globalPDGChildFirstGhostDR", &globalPDGChildFirstGhostDR);
+//    outTree.Branch("evt_globalPDGChildFirstGhostIndMult", &globalPDGChildFirstGhostIndMult);
+//
+//    outTree.Branch("evt_iterativePDGChildFirstGhostDR", &iterativePDGChildFirstGhostDRs);
 
     time_t rawtime = time(NULL);
     struct tm * timeinfo;
@@ -847,30 +820,50 @@ int test(std::string config_path) {
 
     while (reader.Next()) {
 
-        globalChildRecoDR.clear();
-        globalChildRecoIndMult.clear();
-        iterativeChildRecoDR.clear();
+        evt_NTruthTopMatches = 0;
+        evt_NTruthMatchedJets = 0;
 
-        globalChildFirstGhostDR.clear();
-        globalPDGChildFirstGhostDR.clear();
-        globalPDGChildFirstGhostIndMult.clear();
+        klf_NCorrectlyMatchedTops = 0;
+        klf_leptonicTopMatched = 0;
 
-        iterativePDGChildFirstGhostDRs.clear();
+        truth_tripletMap.clear();
+        truth_recoTopTruePermMap.clear();
+        klf_KLFtriplets.clear();
+        klf_truthKLFMap.clear();
+
+        int nLep = mu_pt->size() + el_pt->size();
+        if (eventInd >= nEventsMax || nLep != 1 || jet_pt->size() != 10 ||
+                std::count_if(jet_isbtagged_MV2c10_77->begin(),
+                        jet_isbtagged_MV2c10_77->end(),
+                        [](char flag) {return flag;}) != 4) continue;
+
+        for (int k =0 ; k < jet_parentghost_top_barcode->size(); k++) {
+            auto key = jet_parentghost_top_barcode->at(k);
+            if (key == 0) continue;
+            auto search = truth_tripletMap.find(key);
+            if (search == truth_tripletMap.end()) {
+                truth_tripletMap[key] = {k};
+            } else {
+                truth_tripletMap[key].emplace_back(k);
+            }
+        }
+
+        evt_NTruthTopMatches = truth_tripletMap.size();
+        std::for_each(truth_tripletMap.begin(), truth_tripletMap.end(),
+                      [&evt_NTruthMatchedJets] (auto& vec) { evt_NTruthMatchedJets += vec.second.size();}
+        );
+
+        if ( // if not all tops match or any top is not 1 or 3 jets (lep, had), go on
+                truth_tripletMap.size() != 4 || // not all tops have a match
+                std::count_if(truth_tripletMap.begin(), truth_tripletMap.end(), [] (auto& pair)
+                {
+                    return (pair.second.size() != 1 & pair.second.size() != 3);
+                }) > 0 ||
+                        (nPartonsToBeMatched != -1 && evt_NTruthMatchedJets != nPartonsToBeMatched)
+                ) continue;
+
 
         KLFitter::Particles particles{};
-
-        unsigned int nLep = mu_pt->size() + el_pt->size();
-        if (eventInd >= nEventsMax) break;
-        else if (nLep != 1 || jet_pt->size() != 10 || std::count_if(jet_isbtagged_MV2c10_77->begin(), jet_isbtagged_MV2c10_77->end(), [](char flag) {return flag;}) != 4) continue;
-
-
-            nPartonsMatcheable = 0;
-
-            for (auto pdgId : *jet_parentghost_pdgId) {
-                if (abs(pdgId) == 6 || abs(pdgId) == 24) ++nPartonsMatcheable;
-            }
-
-        if (nPartonsMatched != -1 && nPartonsMatcheable != nPartonsMatched) continue;
 
         if ((eventInd % 1) == 0) {
             time(&rawtime);
@@ -879,467 +872,63 @@ int test(std::string config_path) {
             printf("%10s: [%10i | %10i]\n", buffer, eventInd, nEventsMax);
         }
 
-//        else if (nLep == 0 || nLep > 1 || jet_pt->size() != 10 || std::count_if(jet_mv2c10->begin(), jet_mv2c10->end(), [](float x){return x > 0.64;}) != 4) continue;
-
-        //TODO: not exactly optimal here. Match truth children from top with truth matched to reco to find correct permutation.
-        // Compare with permutation given by klf. In principle I'm only interested in the correct association of qqb and
-        // lvb to "a" top (maybe of the correct charge) and I don't care which top in a first step. After that I could ask
-        // for the right top as well (which should be always the case anyhow?). KLFitter doesn't know the charge of the tops (I think).
-
-//        std::vector<TLorentzVector> jets(10);
-//        for(std::size_t k = 0; k < jets.size(); ++k) {
-//            jets.at(k).SetPtEtaPhiE(jet_pt->at(k), jet_eta->at(k), jet_phi->at(k), jet_e->at(k));
-//        }
-
-// TODO: use true bjets to define order of tops and then permutation accordingly
-
-//        std::vector<TLorentzVector> truthBJets(4);
-//        std::vector<int> truthBJetIndices(4);
-//        std::size_t j = 0;
-//        for(std::size_t k = 0; k < jet_firstghost_pt->size(); ++k) {
-////            if (jet_firstghost_pt->size() < 10) break;
-//
-//            if (TMath::Abs(jet_firstghost_pdgId->at(k)) == 5) {
-//                truthBJets.at(j).SetPtEtaPhiE(jet_firstghost_pt->at(k), jet_firstghost_eta->at(k), jet_firstghost_phi->at(k), jet_firstghost_e->at(k));
-//                truthBJetIndices.at(j) = k;
-//                j++;
-//            }
-//        }
-
-//        std::sort(truthBJets.begin(), truthBJets.end(), [](TLorentzVector v1, TLorentzVector v2) {v1.Pt() > v2.Pt();}); // They should already be pt ordered as the jet collection is
-//        std::sort(truthBJets.begin(), truthBJets.end(), [](TLorentzVector v1, TLorentzVector v2) {v1.Pt() > v2.Pt();});
-//        std::for_each(truthBJets.begin(), truthBJets.end(), [](TLorentzVector v1) {std::cout << v1.Pt() << ", ";}); // Indeed they are.
-
-        // Build fourtop vector in top1 tbar 1 top 2 tbar 2
-
-        std::vector<topChild> children;
-
-
-        std::vector<TLorentzVector> truthTops (4);
-        truthTops.at(0).SetPtEtaPhiM(*truth_top1_pt, *truth_top1_eta, *truth_top1_phi, 172.5*1e3);
-        truthTops.at(1).SetPtEtaPhiM(*truth_top2_pt, *truth_top2_eta, *truth_top2_phi, 172.5*1e3);
-        truthTops.at(2).SetPtEtaPhiM(*truth_tbar1_pt, *truth_tbar1_eta, *truth_tbar1_phi, 172.5*1e3);
-        truthTops.at(3).SetPtEtaPhiM(*truth_tbar2_pt, *truth_tbar2_eta, *truth_tbar2_phi, 172.5*1e3);
-
-        std::vector<bool> truthTops_areHad {
-            *truth_top1_isHad == 1,
-            *truth_top2_isHad == 1,
-            *truth_tbar1_isHad == 1,
-            *truth_tbar2_isHad == 1
-        };
-
-        TLorentzVector child0_0_Vector = {};
-        child0_0_Vector.SetPtEtaPhiE(*truth_top1_child0_pt, *truth_top1_child0_eta, *truth_top1_child0_phi, *truth_top1_child0_e);
-        TLorentzVector child0_1_Vector = {};
-        child0_1_Vector.SetPtEtaPhiE(*truth_top1_child1_pt, *truth_top1_child1_eta, *truth_top1_child1_phi, *truth_top1_child1_e);
-        TLorentzVector child0_2_Vector = {};
-        child0_2_Vector.SetPtEtaPhiE(*truth_top1_child2_pt, *truth_top1_child2_eta, *truth_top1_child2_phi, *truth_top1_child2_e);
-
-        TLorentzVector child1_0_Vector = {};
-        child1_0_Vector.SetPtEtaPhiE(*truth_top2_child0_pt, *truth_top2_child0_eta, *truth_top2_child0_phi, *truth_top2_child0_e);
-        TLorentzVector child1_1_Vector = {};
-        child1_1_Vector.SetPtEtaPhiE(*truth_top2_child1_pt, *truth_top2_child1_eta, *truth_top2_child1_phi, *truth_top2_child1_e);
-        TLorentzVector child1_2_Vector = {};
-        child1_2_Vector.SetPtEtaPhiE(*truth_top2_child2_pt, *truth_top2_child2_eta, *truth_top2_child2_phi, *truth_top2_child2_e);
-
-        TLorentzVector child2_0_Vector = {};
-        child2_0_Vector.SetPtEtaPhiE(*truth_tbar1_child0_pt, *truth_tbar1_child0_eta, *truth_tbar1_child0_phi, *truth_tbar1_child0_e);
-        TLorentzVector child2_1_Vector = {};
-        child2_1_Vector.SetPtEtaPhiE(*truth_tbar1_child1_pt, *truth_tbar1_child1_eta, *truth_tbar1_child1_phi, *truth_tbar1_child1_e);
-        TLorentzVector child2_2_Vector = {};
-        child2_2_Vector.SetPtEtaPhiE(*truth_tbar1_child2_pt, *truth_tbar1_child2_eta, *truth_tbar1_child2_phi, *truth_tbar1_child2_e);
-
-        TLorentzVector child3_0_Vector = {};
-        child3_0_Vector.SetPtEtaPhiE(*truth_tbar2_child0_pt, *truth_tbar2_child0_eta, *truth_tbar2_child0_phi, *truth_tbar2_child0_e);
-        TLorentzVector child3_1_Vector = {};
-        child3_1_Vector.SetPtEtaPhiE(*truth_tbar2_child1_pt, *truth_tbar2_child1_eta, *truth_tbar2_child1_phi, *truth_tbar2_child1_e);
-        TLorentzVector child3_2_Vector = {};
-        child3_2_Vector.SetPtEtaPhiE(*truth_tbar2_child2_pt, *truth_tbar2_child2_eta, *truth_tbar2_child2_phi, *truth_tbar2_child2_e);
-
-        std::vector<TLorentzVector> childrenVectors = {
-                child0_0_Vector, child0_1_Vector, child0_2_Vector,
-                child1_0_Vector, child1_1_Vector, child1_2_Vector,
-                child2_0_Vector, child2_1_Vector, child2_2_Vector,
-                child3_0_Vector, child3_1_Vector, child3_2_Vector,
-        };
-
-        std::vector<int> childrenPdgs = {
-            *truth_top1_child0_pdgid, *truth_top1_child1_pdgid, *truth_top1_child2_pdgid,
-            *truth_top2_child0_pdgid, *truth_top2_child1_pdgid, *truth_top2_child2_pdgid,
-            *truth_tbar1_child0_pdgid, *truth_tbar1_child1_pdgid, *truth_tbar1_child2_pdgid,
-            *truth_tbar2_child0_pdgid, *truth_tbar2_child1_pdgid, *truth_tbar2_child2_pdgid,
-        };
-
-        std::vector<top> enhancedTops(4);
-
-
-        std::vector<int> globalChildRecoInds = {};
-        std::vector<int> globalPDGChildFirstGhostInds = {};
-        std::vector<float> mutable_jet_pt = *jet_pt;
-        std::vector<float> mutable_jet_eta = *jet_eta;
-        std::vector<float> mutable_jet_phi = *jet_phi;
-        std::vector<float> mutable_jet_e = *jet_e;
-
-        std::vector<float> mutable_jet_firstghost_pt = *jet_firstghost_pt;
-        std::vector<float> mutable_jet_firstghost_eta = *jet_firstghost_eta;
-        std::vector<float> mutable_jet_firstghost_phi = *jet_firstghost_phi;
-        std::vector<float> mutable_jet_firstghost_e = *jet_firstghost_e;
-        std::vector<int> mutable_jet_firstghost_pdgId = *jet_firstghost_pdgId;
-
-        std::vector<std::tuple<int, float, float, TLorentzVector>> parentGhostVectors = {};
-        for (size_t k =0 ; k< jet_parentghost_pt->size(); k++) {
-            TLorentzVector v = {jet_parentghost_pt->at(k),
-                                jet_parentghost_eta->at(k),
-                                jet_parentghost_phi->at(k),
-                                jet_parentghost_e->at(k),
-                                };
-            auto tup = std::make_tuple(jet_parentghost_pdgId->at(k), v.Pt(), v.M(), v);
-            parentGhostVectors.emplace_back(tup);
-        }
-
-
-        std::vector<std::tuple<int, TLorentzVector>> Wvecs = {};
-        for (size_t k =0 ; k< jet_parentghost_pt->size(); k++) {
-            if (TMath::Abs(jet_parentghost_pdgId->at(k)) == 24) {
-            TLorentzVector Wv = {jet_parentghost_pt->at(k),
-                                jet_parentghost_eta->at(k),
-                                jet_parentghost_phi->at(k),
-                                jet_parentghost_e->at(k)
-            };
-            auto tup = std::make_tuple(k, Wv);
-            Wvecs.emplace_back(tup);
-            }
-        }
-
-//        std::vector<std::tuple<int, TLorentzVector>> mutable_Wvecs = Wvecs;
-        std::vector<std::tuple<std::tuple<int,int>, TLorentzVector>> res = {};
-        WMatchs(res, Wvecs);
-
-
-
-//        std::vector<std::tuple<int, float, float, TLorentzVector>> condensed_Wvecs = {};
-//        for (auto W : Wvecs) {
-//            if (mutable_Wvecs.empty()) break;
-//
-//            for (auto mutW : mutable_Wvecs) {
-//                if (std::get<0>(W) == std::get<0>(mutW)) continue;
-//                else if (std::get<1>(W) == std::get<1>(mutW))
-//                    std::tuple<int, int> indices = std::make_tuple(std::get<0>(W), std::get<1>(mutW));
-//                    condensed_Wvecs.emplace_back()
-//
-//
-//            }
-//
-//        }
 
 
 // lets test something..
 
 // AWESOME AS FUCK this seems to work. It seems I can use the parentghost top barcode to match reoc jets to truth objects where the truth objects are then in the truth container.
 // This way I would need to check which jets have the same top barcode and should get my triplets. Let's do this.
-    std::map<int, std::vector<int>> tripletMap = {};
-        for (int k =0 ; k < jet_parentghost_top_barcode->size(); k++) {
-            auto key = jet_parentghost_top_barcode->at(k);
-            auto search = tripletMap.find(key);
-            if (search == tripletMap.end()) {
-                tripletMap[key] = {k};
-            } else {
-                tripletMap[key].emplace_back(k);
-            }
-        }
 
-    std::cout << "help";
-//        for (size_t k =0 ; k< jet_parentghost_top_barcode->size(); k++) {
-//            //match parentghost to truth
-//            int truthInd = -1;
-//            for( size_t j=0; j< truth_barcode->size() ; j++) {
-//                if (jet_parentghost_top_barcode->at(k) == truth_barcode->at(j)) {
-//                    truthInd = j;
-//                    break;
-//                }
-//            }
-//
-//               if (truthInd < 0 ) {
-//                   std::cerr << "not good." << std::endl;
-//                   return -1;
-//               }
-//
-//               if (TMath::Abs(truth_pdgid->at(truthInd)) !=6) {
-//                   std::cerr << "not good." << std::endl;
-//                   continue;
-//               }
-//
-//               TLorentzVector truthTop = {};
-//               truthTop.SetPtEtaPhiM(truth_pt->at(truthInd),
-//                                     truth_eta->at(truthInd),
-//                                     truth_phi->at(truthInd),
-//                                     truth_m->at(truthInd)
-//                       );
-//
-//               std::cout<< "Real Truth: " << truthTop.M() << " compared to: ";
-//               for (auto& top: truthTops) {
-//                   std::cout << truthTop.DeltaR(top) << ", ";
-//               }
-//               std::cout << std::endl;
-//
-//
-//            }
+        // The triplet map give me a match between all reco jets and the truth tops. Now we can do two things:
+        // TODO: 1. flag the event if we don't have 4 entries in the map for the 4 tops
+        // TODO: 2. flag the top that is leptonic as that one has only 1 jet in the list (the b jet).
 
 
-
-//        std::vector<std::tuple<int, float, float, TLorentzVector>> bvecs = {};
-//        std::vector<std::tuple<int, int, int, float, TLorentzVector, TLorentzVector>> pottops = {};
-//        for (size_t k =0 ; k< jet_parentghost_pt->size(); k++) {
-//            if (TMath::Abs(jet_parentghost_pdgId->at(k)) == 6) {
-//                TLorentzVector bv = {jet_parentghost_pt->at(k),
-//                                     jet_parentghost_eta->at(k),
-//                                     jet_parentghost_phi->at(k),
-//                                     jet_parentghost_e->at(k)
-//                };
-//                auto tup = std::make_tuple(k, bv.Pt(), bv.M(), bv);
-//                bvecs.emplace_back(tup);
-//
-//                TLorentzVector firstB = {jet_firstghost_pt->at(k),
-//                                         jet_firstghost_eta->at(k),
-//                                         jet_firstghost_phi->at(k),
-//                                         jet_firstghost_e->at(k)
-//                };
-//
-////                std::cout << bv.E() << ", " << bv.Pt() << ", " << bv.M() << std::endl;
-//
-//                std::cout << "firstB: " << firstB.E() << " childrenB: " <<
-//                ", " << child0_0_Vector.E() <<
-//                ", " << child1_0_Vector.E() <<
-//                ", " << child2_0_Vector.E() <<
-//                ", " << child3_0_Vector.E() << std::endl;
-//
-////                std::cout << "parent: " << bv.M() << ", Children sum M: " << childrenVectors
-//
-//                for (size_t j = 0; j < res.size(); j++) {
-//                    TLorentzVector potTop = (std::get<1>(res.at(j)) + firstB);
-//
-////                    std::cout << potTop.E() - bv.E() << ", ";
-//                    std::cout << potTop.M() << ", ";
-//                }
-//                std::cout << std::endl;
-//
-////                for (size_t z = 0 ; z <truthTops.size();z++) {
-////                    std::cout << truthTops.at(z).E() - bv.E() << ", ";
-////                }
-////                std::cout << std::endl;
-//            }
-//        }
-//
-////                    auto potTop = bv;
-////
-////                    int minInd = -1;
-////                    float mindR = 1000;
-////                    for (size_t z = 0 ; z <truthTops.size();z++) {
-////                        float dR = potTop.DeltaR(truthTops.at(z));
-////                        if (dR < mindR) {
-////                            mindR = dR;
-////                            minInd = z;
-////                        }
-////                    }
-////
-//////                    auto bWtInd = std::make_tuple(k, j, minInd);
-//////                    auto temp = std::make_tuple(k,j,minInd, mindR, potTop, truthTops.at(minInd));
-////                    auto temp = std::make_tuple(k,-1,minInd, mindR, potTop, truthTops.at(minInd));
-////                    pottops.emplace_back(temp);
-////
-//////                    pottops.emplace_back(std::make_tuple(k, j, ));
-////                }
-////            }
-//
-//        std::cout << "Well.." << std::endl;
-//        for (auto& top: truthTops) {
-////            std::cout << top.E() << ", " << top.Pt() << ", " << top.M() << std::endl;
-//            std::cout << top.M() << ", ";
-//        }
-//        std::cout << std::endl << std::endl;
-//
-//
-//
-//
-//
-//
-//
-        std::cout << "Halt!" << std::endl;
-
-
-
-        for (size_t k = 0; k < childrenVectors.size(); k++) {
-            int jetInd = -2;
-            int globalJetInd = -2;
-            float globaldeltaR = 1000;
-            float deltaR = 1000;
-            float childFirstGhostDR = 1000;
-            int childFirstGhostInd = -2;
-            float PDGChildFirstGhostDR = 1000;
-            int PDGChildFirstGhostInd = -2;
-            int iterativePDGChildFirstGhostInd = -2;
-            float iterativePDGChildFirstGhostDR = 1000;
-
-            if (TMath::Abs(childrenPdgs.at(k)) < 6) {
-                // Rematch truth to reco.. does not look good on purely dR!
-
-                // This is the real minimum..and values are overwritten. Next is the iterative minimum
-                auto results = deltaRMatch(childrenVectors.at(k), *jet_pt, *jet_eta, *jet_phi, *jet_e);
-                globalJetInd = std::get<0> (results);
-                globaldeltaR = std::get<1> (results);
-                if (jetInd != -2) globalChildRecoInds.emplace_back(jetInd);
-                globalChildRecoDR.emplace_back(deltaR);
-
-                // Iterative Minimum. First come, first serve
-                results = deltaRMatch(childrenVectors.at(k), mutable_jet_pt,mutable_jet_eta,mutable_jet_phi,mutable_jet_e);
-                jetInd = std::get<0> (results);
-                deltaR = std::get<1> (results);
-                mutable_jet_pt.at(jetInd) = -1;
-
-                iterativeChildRecoDR.emplace_back(deltaR);
-
-
-                // Now match child to firstghost. Should be 0. -> but isn't
-                results = deltaRMatch(childrenVectors.at(k), *jet_firstghost_pt,*jet_firstghost_eta,*jet_firstghost_phi,*jet_firstghost_e);
-                childFirstGhostInd = std::get<0> (results);
-                childFirstGhostDR = std::get<1> (results);
-
-                globalChildFirstGhostDR.emplace_back(childFirstGhostDR);
-
-                // Now match child to firstghost with PDG
-                results = deltaRMatchWPDGId(childrenVectors.at(k),childrenPdgs.at(k), *jet_firstghost_pdgId,  *jet_firstghost_pt,*jet_firstghost_eta,*jet_firstghost_phi,*jet_firstghost_e);
-                PDGChildFirstGhostInd = std::get<0> (results);
-                PDGChildFirstGhostDR = std::get<1> (results);
-
-                globalPDGChildFirstGhostDR.emplace_back(childFirstGhostDR);
-                globalPDGChildFirstGhostInds.emplace_back(PDGChildFirstGhostInd);
-
-
-                // Now match child to firstghost with PDG and iteratively
-                results = deltaRMatchWPDGId(childrenVectors.at(k),childrenPdgs.at(k), mutable_jet_firstghost_pdgId,  mutable_jet_firstghost_pt,mutable_jet_firstghost_eta,mutable_jet_firstghost_phi,mutable_jet_firstghost_e);
-
-                iterativePDGChildFirstGhostInd = std::get<0> (results);
-                iterativePDGChildFirstGhostDR = std::get<1> (results);
-
-                mutable_jet_firstghost_pt.at(iterativePDGChildFirstGhostInd) = -1;
-                iterativePDGChildFirstGhostDRs.emplace_back(iterativePDGChildFirstGhostDR);
-
-
-            }
-
-            topChild child = {
-                        jetInd,
-                        globalJetInd,
-                        childFirstGhostInd,
-                        PDGChildFirstGhostInd,
-                        iterativePDGChildFirstGhostInd,
-                        childrenPdgs.at(k),
-                        childFirstGhostInd >= 0 ? jet_firstghost_pdgId->at(childFirstGhostInd) : -99,
-                        PDGChildFirstGhostInd >= 0 ? jet_firstghost_pdgId->at(PDGChildFirstGhostInd) : -99,
-                        deltaR,
-                        globaldeltaR,
-                        childFirstGhostDR,
-                        PDGChildFirstGhostDR,
-                        iterativePDGChildFirstGhostDR,
-                        childrenVectors.at(k),
-                        truthTops_areHad.at( k / 3)
-            };
-        children.emplace_back( child);
-
-        }
-
-        // Measure to show just how bad the matching is!
-        std::map<int,int> multiplicities;
-        std::for_each(globalChildRecoInds.begin(), globalChildRecoInds.end(), [&multiplicities](int val) {multiplicities[val]++;});
-        std::for_each(multiplicities.begin(), multiplicities.end(), [&globalChildRecoIndMult](std::pair<int,int> val) {globalChildRecoIndMult.emplace_back(val.second);});
-
-        int count = std::count_if(iterativeChildRecoDR.begin(), iterativeChildRecoDR.end(), [] (float val) {return val >= 0.01;});
-        iterativeChildRecoDR_lt_01 = count == 0;
-
-        // Same for global PDG ChildFirstghost
-        multiplicities.clear();
-        std::for_each(globalPDGChildFirstGhostInds.begin(), globalPDGChildFirstGhostInds.end(), [&multiplicities](int val) {multiplicities[val]++;});
-        std::for_each(multiplicities.begin(), multiplicities.end(), [&globalPDGChildFirstGhostIndMult](std::pair<int,int> val) {globalPDGChildFirstGhostIndMult.emplace_back(val.second);});
-
-        for (size_t k = 0; k < enhancedTops.size(); k++) {
-            TLorentzVector bChild;
-            int bJetRecoInd = -2;
-            int childBInd = -2;
-
-            for (size_t j = 0; j < 3; j++) {
-                if(TMath::Abs(children.at(j + 3*k).childPDGId) == 5) {
-                    bChild = children.at(j + 3*k).childVector;
-                    bJetRecoInd = children.at(j + 3*k).recoJetIndex_globalChildFirstGhost;
-                    childBInd = j + 3*k;
+        std::map<int, TLorentzVector> truthTopMap {};
+        for (auto& pair: truth_tripletMap) {
+            int truthTopInd = -1;
+            for (int k = 0; k < truth_barcode->size(); k++) {
+                if (pair.first == truth_barcode->at(k)) {
+                    truthTopInd = k;
                     break;
                 }
             }
 
-            std::vector<topChild> ownChildren {
-                children.at(3*k + 0),
-                children.at(3*k + 1),
-                children.at(3*k + 2)
-            };
-
-            std::vector<int> recoChildIndices {
-                    children.at(3*k + 0).recoJetIndex_globalChildFirstGhost,
-                    children.at(3*k + 1).recoJetIndex_globalChildFirstGhost,
-                    children.at(3*k + 2).recoJetIndex_globalChildFirstGhost
-            };
-
-            if (bJetRecoInd < 0) {
-                std::cerr << "No Bjet found for top" << std::endl;
-                break;
-            }
-
-            TLorentzVector SumChildren = children.at(3*k + 0).childVector
-                    + children.at(3*k + 1).childVector
-                    + children.at(3*k + 2).childVector;
-
-            std::vector<TLorentzVector> iterativePDGMatchedFirstGhosts {};
-            for (size_t j = 0; j< 3; j++ ) {
-                topChild child = children.at(3 * k + j);
-                int ind = child.recoJetIndex_PDGiterativeChildFirstGhost;
-                if (ind < 0) {
-                    continue;
-                } else {
-
-                    TLorentzVector vecci = {
-                            jet_firstghost_pt->at(ind),
-                            jet_firstghost_eta->at(ind),
-                            jet_firstghost_phi->at(ind),
-                            jet_firstghost_e->at(ind),
-                    };
-                    iterativePDGMatchedFirstGhosts.emplace_back(vecci);
-                }
-            }
-
-            TLorentzVector sumPDGetc = {};
-            if (iterativePDGMatchedFirstGhosts.size() == 3) {
-                sumPDGetc = iterativePDGMatchedFirstGhosts.at(0)
-                            + iterativePDGMatchedFirstGhosts.at(1)
-                            + iterativePDGMatchedFirstGhosts.at(2);
-            }
-
-            top enhancedTop = {
-                    static_cast<float>(bChild.Pt()),
-                    childBInd,
-                    jet_pt->at(bJetRecoInd),
-                    bJetRecoInd,
-                    truthTops_areHad.at(k),
-                    truthTops.at(k),
-                    ownChildren,
-                    recoChildIndices,
-                    SumChildren,
-                    sumPDGetc,
-                    static_cast<float>(truthTops.at(k).DeltaR(SumChildren)),
-                    static_cast<float>(truthTops.at(k).DeltaR(sumPDGetc)),
-                    static_cast<float>(SumChildren.DeltaR(sumPDGetc))
-            };
-
-            enhancedTops.at(k) = enhancedTop;
+            TLorentzVector vec = {};
+            vec.SetPtEtaPhiM(truth_pt->at(truthTopInd),
+                             truth_eta->at(truthTopInd),
+                             truth_phi->at(truthTopInd),
+                             truth_m->at(truthTopInd)
+                             );
+            truthTopMap[pair.first] = vec;
 
         }
+
+        // Reco to Truth Map
+
+        for (auto& pair: truth_tripletMap) {
+            if (pair.second.size() == 3) { //hadronic
+                std::vector<TLorentzVector> vecs = {};
+                for (int ind : pair.second) {
+                    TLorentzVector vec = {};
+                    vec.SetPtEtaPhiE(
+                            jet_pt->at(ind),
+                            jet_eta->at(ind),
+                            jet_phi->at(ind),
+                            jet_e->at(ind)
+                            );
+                    vecs.emplace_back(vec);
+                }
+                truth_recoTopTruePermMap[pair.first] = (vecs.at(0) + vecs.at(1) + vecs.at(2));
+            } else if (pair.second.size() == 1) { // leptonic - do nothing since MET is well.. missing.
+//                TLorentzVector b = {};
+//                b.SetPtEtaPhiE(jet_pt->at(pair.second.at(0)),
+//                               jet_eta->at(pair.second.at(0)),
+//                               jet_phi->at(pair.second.at(0)),
+//                               jet_e->at(pair.second.at(0))
+//                        );
+                                } else std::cerr << "Unusual amount of matching children: " << pair.second.size() << std::endl;
+            }
 
 
 
@@ -1539,7 +1128,7 @@ int test(std::string config_path) {
         // Add MET information
         const double met_ex = *met_met * cos(*met_phi)/1e3;
         const double met_ey = *met_met * sin(*met_phi)/1e3;
-        if (!fitter.SetET_miss_XY_SumET(met_ex, met_ey, *met_met)) {
+        if (!fitter.SetET_miss_XY_SumET(met_ex, met_ey, *met_met)) { // TODO: This is wrong and should be sumET instead of metmet. Not in ntuple currently
             std::cerr << "ERROR: Failed to add MET to fitter. Aborting." << std::endl;
             return 1;
         }
@@ -1823,9 +1412,63 @@ int test(std::string config_path) {
 
 
         auto highestPerm = fitter.CustomPermutations()->getFJsonPermutations().at(klf_highest_prob_index);
-        auto jets = highestPerm["light_indices"].get<std::vector<int>>();;
-//        std::for_each(highestPerm.begin(), highestPerm.end(), [](int x) {std::cout << x;});
-//        std::cout << std::endl;
+        // Build KLF best permutation map
+        auto KLFJetIndices = highestPerm["light_indices"].get<std::vector<int>>();
+        auto KLFBIndices = highestPerm["b_indices"].get<std::vector<int>>();
+
+        // The indices in the permutation for KLF are not so much indices as they are the order for light and b jets. Since light and b-jets are together in the jet collection we need to map that.
+        std::vector<int> recoBIndices {};
+        std::vector<int> recoJetIndices {};
+        for (int j = 0; j < jet_isbtagged_MV2c10_77->size(); j++) {
+            if (jet_isbtagged_MV2c10_77->at(j) == 1) recoBIndices.emplace_back(j);
+            else recoJetIndices.emplace_back(j);
+        }
+
+
+        for (int j = 0; j < recoJetIndices.size(); j += 2) {
+            int permBtoRecoB = KLFBIndices.at(j / 2);
+            std::vector<int> vec = {
+                    recoBIndices.at(permBtoRecoB),
+                    recoJetIndices.at(KLFJetIndices.at(j)),
+                    recoJetIndices.at(KLFJetIndices.at(j+1)),
+            };
+
+            klf_KLFtriplets.emplace_back(vec);
+        }
+        // Compare leptonic b index
+        int KLFLepBIndex = recoBIndices.at(KLFBIndices.at(KLFBIndices.size()-1));
+        int TrueLepBIndex = -1;
+//        true leptonic b
+        for (auto& pair : truth_tripletMap) {
+            if (pair.second.size() == 1) {
+                TrueLepBIndex = pair.second.at(0);
+                break;
+            }
+        }
+
+        // TODO: Match truth top to KLF top. Get Number of matched tops etc.
+
+// Sort perms. Then look for match.
+
+        for (auto& triplet : klf_KLFtriplets) {
+            std::sort(triplet.begin(), triplet.end());
+        }
+
+        for (auto& pair : truth_tripletMap) {
+            std::sort(pair.second.begin(), pair.second.end());
+
+            if (pair.second.size() == 1) { //leptonic
+                if (KLFLepBIndex == TrueLepBIndex) klf_truthKLFMap[pair.first] = {KLFLepBIndex};
+            } else { //hadronic
+                for (auto& triplet : klf_KLFtriplets) {
+                    if ( triplet == pair.second) klf_truthKLFMap[pair.first] = triplet;
+                }
+            }
+        }
+
+
+        klf_NCorrectlyMatchedTops = klf_truthKLFMap.size();
+        klf_leptonicTopMatched = (KLFLepBIndex == TrueLepBIndex);
 
 
         eventInd++;
