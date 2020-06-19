@@ -115,29 +115,10 @@ int test(std::string config_path) {
     std::vector<std::string> fileNames = conf["inputFiles"].get<std::vector<std::string>>();
 
     auto chain = new TChain("nominal_Loose");
-//    std::vector<std::string> fileNames = {
-//            "/home/lennart/Data/klftest/wTruth/user.lrustige.412043.aMcAtNloPythia8EvtGen.DAOD_TOPQ1.e7101_a875_r10724_p3629.SM4t-212560_mc16e_KLFitter_v1_output_root/user.lrustige.18026714._000002.output.root",
-//            "/home/lennart/Data/klftest/wTruth/user.lrustige.412043.aMcAtNloPythia8EvtGen.DAOD_TOPQ1.e7101_a875_r10724_p3629.SM4t-212560_mc16e_KLFitter_v1_output_root/user.lrustige.18026714._000001.output.root",
-//            "/home/lennart/Data/klftest/wTruth/user.lrustige.412043.aMcAtNloPythia8EvtGen.DAOD_TOPQ1.e7101_a875_r10724_p3629.SM4t-212560_mc16e_KLFitter_v1_output_root/user.lrustige.18026714._000004.output.root",
-//            "/home/lennart/Data/klftest/wTruth/user.lrustige.412043.aMcAtNloPythia8EvtGen.DAOD_TOPQ1.e7101_a875_r10724_p3629.SM4t-212560_mc16e_KLFitter_v1_output_root/user.lrustige.18026714._000006.output.root",
-//            "/home/lennart/Data/klftest/wTruth/user.lrustige.412043.aMcAtNloPythia8EvtGen.DAOD_TOPQ1.e7101_a875_r10724_p3629.SM4t-212560_mc16e_KLFitter_v1_output_root/user.lrustige.18026714._000005.output.root",
-//            "/home/lennart/Data/klftest/wTruth/user.lrustige.412043.aMcAtNloPythia8EvtGen.DAOD_TOPQ1.e7101_a875_r10724_p3629.SM4t-212560_mc16e_KLFitter_v1_output_root/user.lrustige.18026714._000003.output.root"
-//    };
 
     for (auto fn : fileNames) chain->AddFile(fn.c_str());
 
-    // auto inFile = TFile::Open("/home/lennart/Data/klftest/SM4t-212560/SSML/mc16e/inclusive/ttbar_nonAllHad.root",
-    // "READ");
-//    auto inFile =
-//            TFile::Open("/home/lennart/Data/klftest/SM4t-212560/1LOS/mc16d/1los_4top/4topNLO.root", "READ");
-
-
-//auto inFile =
-//            TFile::Open("/home/lennart/Data/klftest/wTruth/user.lrustige.412043.aMcAtNloPythia8EvtGen.DAOD_TOPQ1.e7101_a875_r10724_p3629.SM4t-212560_mc16e_KLFitter_v1_output_root/user.lrustige.18026714._000001.output.root", "READ");
-
-
     TTreeReader reader(chain);
-//    TTreeReader reader("nominal_Loose", inFile);
 
     TTreeReaderValue<std::vector<int>> jet_parentghost_top_barcode(reader, "jet_parentghost_top_barcode");
     TTreeReaderValue<std::vector<int>> truth_pdgid(reader, "truth_pdgid");
@@ -328,10 +309,10 @@ int test(std::string config_path) {
 //    TTreeReaderValue<float> truth_tbar_phi(reader, "truth_tbar_phi");
 //    TTreeReaderValue<float> truth_top_phi(reader, "truth_top_phi");
 
-    bool isTtBar = false;
-    if (conf.find("isTtBar") != conf.end()){
-        isTtBar = conf["isTtBar"].get<bool>();
-    }
+//    bool isTtBar = false;
+//    if (conf.find("isTtBar") != conf.end()){
+//        isTtBar = conf["isTtBar"].get<bool>();
+//    }
 
 
 
@@ -349,6 +330,14 @@ int test(std::string config_path) {
     TFile outFile(outFilePath.c_str(), "RECREATE");
 //    TTree* outTree = (TTree*)inFile->Get("nominal_Loose")->Clone();
     TTree outTree("nominal", "nominal");
+    TH1F cutFlow("CutFlow", "CutFlow", 7,0,7);
+    cutFlow.GetXaxis()->SetBinLabel(1, "PreSel");
+    cutFlow.GetXaxis()->SetBinLabel(2, "nLep == 1");
+    cutFlow.GetXaxis()->SetBinLabel(3, "nJets == 10");
+    cutFlow.GetXaxis()->SetBinLabel(4, "nBJets == 4");
+    cutFlow.GetXaxis()->SetBinLabel(5, "4 truth tops matched");
+    cutFlow.GetXaxis()->SetBinLabel(6, "10 reco jets matched");
+    cutFlow.GetXaxis()->SetBinLabel(7, "triplet sizes == 301");
 
     int evt_NTruthTopMatches;
     int evt_NTruthMatchedJets;
@@ -580,10 +569,10 @@ int test(std::string config_path) {
     outTree.Branch("klf_NCorrectlyMatchedTops", &klf_NCorrectlyMatchedTops);
     outTree.Branch("klf_leptonicTopMatched", &klf_leptonicTopMatched);
 
-    outTree.Branch("truth_tripletMap", &truth_tripletMap, 32000, 0);
-    outTree.Branch("truth_recoTopTruePermMap", &truth_recoTopTruePermMap, 32000, 0);
-    outTree.Branch("klf_KLFtriplets", &klf_KLFtriplets, 32000, 0);
-    outTree.Branch("klf_truthKLFMap", &klf_truthKLFMap, 32000, 0);
+//    outTree.Branch("truth_tripletMap", &truth_tripletMap, 32000, 0);
+//    outTree.Branch("truth_recoTopTruePermMap", &truth_recoTopTruePermMap, 32000, 0);
+//    outTree.Branch("klf_KLFtriplets", &klf_KLFtriplets, 32000, 0);
+//    outTree.Branch("klf_truthKLFMap", &klf_truthKLFMap, 32000, 0);
 
     outTree.Branch("klf_bhad1_pt", &klf_bhad1_pt);
     outTree.Branch("klf_bhad1_eta", &klf_bhad1_eta);
@@ -820,6 +809,8 @@ int test(std::string config_path) {
 
     while (reader.Next()) {
 
+        if (nEventsMax >= 0 &&  eventInd >= nEventsMax) continue;
+
         evt_NTruthTopMatches = 0;
         evt_NTruthMatchedJets = 0;
 
@@ -832,10 +823,21 @@ int test(std::string config_path) {
         klf_truthKLFMap.clear();
 
         int nLep = mu_pt->size() + el_pt->size();
-        if (eventInd >= nEventsMax || nLep != 1 || jet_pt->size() != 10 ||
-                std::count_if(jet_isbtagged_MV2c10_77->begin(),
-                        jet_isbtagged_MV2c10_77->end(),
-                        [](char flag) {return flag;}) != 4) continue;
+        int nBJets = std::count_if(jet_isbtagged_MV2c10_77->begin(),
+                                   jet_isbtagged_MV2c10_77->end(),
+                                   [](char flag) {return flag;});
+
+        // CUTS
+        cutFlow.Fill(0);
+        if(nLep != 1) continue;
+        else cutFlow.Fill(1);
+
+        if (jet_pt->size() != 10) continue;
+        else cutFlow.Fill(2);
+
+        if (nBJets != 4) continue;
+        else cutFlow.Fill(3);
+
 
         for (int k =0 ; k < jet_parentghost_top_barcode->size(); k++) {
             auto key = jet_parentghost_top_barcode->at(k);
@@ -853,14 +855,28 @@ int test(std::string config_path) {
                       [&evt_NTruthMatchedJets] (auto& vec) { evt_NTruthMatchedJets += vec.second.size();}
         );
 
-        if ( // if not all tops match or any top is not 1 or 3 jets (lep, had), go on
-                truth_tripletMap.size() != 4 || // not all tops have a match
-                std::count_if(truth_tripletMap.begin(), truth_tripletMap.end(), [] (auto& pair)
-                {
-                    return (pair.second.size() != 1 & pair.second.size() != 3);
-                }) > 0 ||
-                        (nPartonsToBeMatched != -1 && evt_NTruthMatchedJets != nPartonsToBeMatched)
-                ) continue;
+        // CUT
+        if (truth_tripletMap.size() !=4) {
+            continue;
+        } else cutFlow.Fill(4);
+
+        if (evt_NTruthMatchedJets != nPartonsToBeMatched) {
+            continue;
+        } else cutFlow.Fill(5);
+
+
+        int tripletSizes = 0; // nTriplet *  100 + nDuplet * 10 +  nSinglet = 301 for 1LOS tree level FS. (3 tops with three jets and 1 w/ one)
+        std::for_each(truth_tripletMap.begin(), truth_tripletMap.end(), [&tripletSizes] (auto& pair) {
+            int size = pair.second.size();
+            if (size == 3) tripletSizes += 100;
+            else if (size == 2) tripletSizes += 10;
+            else if (size == 1) tripletSizes += 1;
+        });
+
+        // CUT
+        if (tripletSizes != 301) {
+            continue;
+        } else cutFlow.Fill(6);
 
 
         KLFitter::Particles particles{};
@@ -871,9 +887,10 @@ int test(std::string config_path) {
             strftime(buffer, 80, "%FT%T", timeinfo);
             printf("%10s: [%10i | %10i]\n", buffer, eventInd, nEventsMax);
         }
-
-
-
+//-----------
+        eventInd++;
+        if (eventInd < 55) continue;
+//----------
 // lets test something..
 
 // AWESOME AS FUCK this seems to work. It seems I can use the parentghost top barcode to match reoc jets to truth objects where the truth objects are then in the truth container.
@@ -894,14 +911,15 @@ int test(std::string config_path) {
                 }
             }
 
-            TLorentzVector vec = {};
-            vec.SetPtEtaPhiM(truth_pt->at(truthTopInd),
-                             truth_eta->at(truthTopInd),
-                             truth_phi->at(truthTopInd),
-                             truth_m->at(truthTopInd)
-                             );
-            truthTopMap[pair.first] = vec;
-
+            if (truthTopInd >= 0 && truthTopInd < truth_pt->size()) {
+                TLorentzVector vec = {};
+                vec.SetPtEtaPhiM(truth_pt->at(truthTopInd),
+                                 truth_eta->at(truthTopInd),
+                                 truth_phi->at(truthTopInd),
+                                 truth_m->at(truthTopInd)
+                );
+                truthTopMap[pair.first] = vec;
+            } else std::cerr << "Error for truthTopMap for barcode: " << pair.first << " in Event: " << *eventNumber << std::endl;
         }
 
         // Reco to Truth Map
@@ -910,14 +928,17 @@ int test(std::string config_path) {
             if (pair.second.size() == 3) { //hadronic
                 std::vector<TLorentzVector> vecs = {};
                 for (int ind : pair.second) {
-                    TLorentzVector vec = {};
-                    vec.SetPtEtaPhiE(
-                            jet_pt->at(ind),
-                            jet_eta->at(ind),
-                            jet_phi->at(ind),
-                            jet_e->at(ind)
-                            );
-                    vecs.emplace_back(vec);
+
+                    if (ind >= 0 && ind < jet_pt->size()) {
+                        TLorentzVector vec = {};
+                        vec.SetPtEtaPhiE(
+                                jet_pt->at(ind),
+                                jet_eta->at(ind),
+                                jet_phi->at(ind),
+                                jet_e->at(ind)
+                        );
+                        vecs.emplace_back(vec);
+                    } else std::cerr << "Error for Reco Truth Map for barcode: " << pair.first << " in Event: " << *eventNumber << std::endl;
                 }
                 truth_recoTopTruePermMap[pair.first] = (vecs.at(0) + vecs.at(1) + vecs.at(2));
             } else if (pair.second.size() == 1) { // leptonic - do nothing since MET is well.. missing.
@@ -1479,6 +1500,7 @@ int test(std::string config_path) {
     // Go to the output file and write it.
     outFile.cd();
     std::cout << std::endl << "Writing into output root file: " << outFilePath << std::endl << std::endl;
+    cutFlow.Write();
     outTree.Write();
 
     // Close both input and output ROOT files.
