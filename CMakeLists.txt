@@ -88,7 +88,11 @@ if( BUILTIN_BAT )
   message( STATUS "Using a privately downloaded BAT version for the build" )
 else()
   # Look for BAT on the build system.
-  find_package( BAT 0.9.4.1 EXACT REQUIRED )
+#  find_package( BAT 0.9.4.1 EXACT REQUIRED )
+  message( WARNING "find_package BAT overwritten. This is only for private production.")
+  set( BAT_ROOT $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}> )
+  set( BAT_INCLUDE_DIR ${BAT_ROOT}/include )
+  set( BAT_LIBRARY ${BAT_ROOT}/lib/libBAT.so )
 endif()
 
 # Public header files for the shared/static library.

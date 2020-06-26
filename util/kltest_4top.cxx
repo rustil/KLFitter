@@ -26,6 +26,15 @@
 #include <stdlib.h>
 #include <time.h>
 #include <TH1F.h>
+#include <TROOT.h>
+
+template <typename T>
+int ClearAndResize(std::vector<T>& vec, unsigned int const newSize, T defaultValue) {
+    vec.clear();
+    vec.resize(newSize, defaultValue);
+
+    return 1;
+}
 
 std::tuple<int,float> deltaRMatch(TLorentzVector& child, std::vector<float>& jet_pt, std::vector<float>& jet_eta, std::vector<float>& jet_phi, std::vector<float>& jet_e) {
     float minDR = 999.;
@@ -50,33 +59,9 @@ std::tuple<int,float> deltaRMatch(TLorentzVector& child, std::vector<float>& jet
     return std::make_tuple(minDR_Ind, minDR);
 }
 
-std::tuple<int,float> deltaRMatchWPDGId(TLorentzVector& child, int childPDGId, std::vector<int>& jet_PDGIDs,  std::vector<float>& jet_pt, std::vector<float>& jet_eta, std::vector<float>& jet_phi, std::vector<float>& jet_e) {
-    float minDR = 999.;
-    size_t minDR_Ind;
-    for (size_t i = 0; i < jet_pt.size(); i++) {
-
-        if (childPDGId != jet_PDGIDs.at(i)) continue;
-
-        if(jet_pt.at(i) < 0) continue; // Needed for iterative matching
-
-        TLorentzVector comp {
-                jet_pt.at(i),
-                jet_eta.at(i),
-                jet_phi.at(i),
-                jet_e.at(i)
-        };
-
-        float dR = child.DeltaR(comp);
-        if (dR < minDR) {
-            minDR = dR;
-            minDR_Ind = i;
-        }
-    }
-    return std::make_tuple(minDR_Ind, minDR);
-}
-
-
 int test(std::string config_path) {
+    
+
     nlohmann::json conf;
     std::ifstream i(config_path);
     i >> conf;
@@ -99,11 +84,8 @@ int test(std::string config_path) {
 
     // Set the likelihood properties.
     likelihood.PhysicsConstants()->SetMassTop(172.5);  // mass in GeV
-    // Other b-tagging mode options are e.g. 'kNotag' and 'kVeto'.
-    // For all possible options, refer to the documentation.
     likelihood.SetBTagging(KLFitter::LikelihoodBase::BtaggingMethod::kVetoNoFit);
     likelihood.SetFlagTopMassFixed(true);
-
     likelihood.setFPermMethod(KLFitter::LikelihoodBase::kCustomPermutations);
 
     if (!fitter.SetLikelihood(&likelihood)) {
@@ -111,12 +93,9 @@ int test(std::string config_path) {
         return 1;
     }
 
-
     std::vector<std::string> fileNames = conf["inputFiles"].get<std::vector<std::string>>();
-
     auto chain = new TChain("nominal_Loose");
-
-    for (auto fn : fileNames) chain->AddFile(fn.c_str());
+    for (auto& fn : fileNames) chain->AddFile(fn.c_str());
 
     TTreeReader reader(chain);
 
@@ -134,7 +113,6 @@ int test(std::string config_path) {
     TTreeReaderValue<std::vector<float>> jet_e(reader, "jet_e");
 
     TTreeReaderValue<std::vector<float>> jet_mv2c10(reader, "jet_mv2c10");
-//  TTreeReaderValue<std::vector<char>> jet_isbtagged_MV2c10_77(reader, "jet_isbtagged_MV2c10_77");
     TTreeReaderValue<int> nBTags_MV2c10_70(reader, "nBTags_MV2c10_70");
 
     TTreeReaderValue<std::vector<float>> el_pt(reader, "el_pt");
@@ -351,7 +329,27 @@ int test(std::string config_path) {
     std::map<int, std::vector<int>> klf_truthKLFMap;
 
 
+    std::vector<float> klf_tops_pt; // ordering according to model: had123 lep
+    std::vector<float> klf_tops_eta;
+    std::vector<float> klf_tops_phi;
+    std::vector<float> klf_tops_e;
+    std::vector<char> klf_tops_matchesTruthTop;
+    std::vector<int> klf_tops_matchedTruthTopOrigInd;
+    std::vector<int> klf_tops_recoJetInds_0;
+    std::vector<int> klf_tops_recoJetInds_1;
+    std::vector<int> klf_tops_recoJetInds_2;
+    
+    std::vector<float> klf_matchedTruth_tops_pt;
+    std::vector<float> klf_matchedTruth_tops_eta;
+    std::vector<float> klf_matchedTruth_tops_phi;
+    std::vector<float> klf_matchedTruth_tops_e;
 
+    std::vector<float> klf_reco_tops_pt;
+    std::vector<float> klf_reco_tops_eta;
+    std::vector<float> klf_reco_tops_phi;
+    std::vector<float> klf_reco_tops_e;
+    
+    
 
     std::vector<float> cp_el_pt;
     std::vector<float> cp_el_eta;
@@ -371,11 +369,6 @@ int test(std::string config_path) {
 
     float cp_met_met;
     float cp_met_phi;
-
-//    std::vector<float> cp_truth_top_pt;
-//    std::vector<float> cp_truth_top_eta;
-//    std::vector<float> cp_truth_top_phi;
-//    std::vector<int> cp_truth_top_type;
 
     int cp_ejets_MV2c10;
     int cp_mujets_MV2c10;
@@ -568,6 +561,26 @@ int test(std::string config_path) {
 
     outTree.Branch("klf_NCorrectlyMatchedTops", &klf_NCorrectlyMatchedTops);
     outTree.Branch("klf_leptonicTopMatched", &klf_leptonicTopMatched);
+
+    outTree.Branch("klf_tops_pt", &klf_tops_pt);
+    outTree.Branch("klf_tops_eta", &klf_tops_eta);
+    outTree.Branch("klf_tops_phi", &klf_tops_phi);
+    outTree.Branch("klf_tops_e", &klf_tops_e);
+    outTree.Branch("klf_tops_matchesTruthTop", &klf_tops_matchesTruthTop);
+    outTree.Branch("klf_tops_matchedTruthTopOrigInd", &klf_tops_matchedTruthTopOrigInd);
+    outTree.Branch("klf_tops_recoJetInds_0", &klf_tops_recoJetInds_0);
+    outTree.Branch("klf_tops_recoJetInds_1", &klf_tops_recoJetInds_1);
+    outTree.Branch("klf_tops_recoJetInds_2", &klf_tops_recoJetInds_2);
+
+    outTree.Branch("klf_matchedTruth_tops_pt", &klf_matchedTruth_tops_pt);
+    outTree.Branch("klf_matchedTruth_tops_eta", &klf_matchedTruth_tops_eta);
+    outTree.Branch("klf_matchedTruth_tops_phi", &klf_matchedTruth_tops_phi);
+    outTree.Branch("klf_matchedTruth_tops_e", &klf_matchedTruth_tops_e);
+
+    outTree.Branch("klf_reco_tops_pt", &klf_reco_tops_pt);
+    outTree.Branch("klf_reco_tops_eta", &klf_reco_tops_eta);
+    outTree.Branch("klf_reco_tops_phi", &klf_reco_tops_phi);
+    outTree.Branch("klf_reco_tops_e", &klf_reco_tops_e);
 
 //    outTree.Branch("truth_tripletMap", &truth_tripletMap, 32000, 0);
 //    outTree.Branch("truth_recoTopTruePermMap", &truth_recoTopTruePermMap, 32000, 0);
@@ -887,19 +900,6 @@ int test(std::string config_path) {
             strftime(buffer, 80, "%FT%T", timeinfo);
             printf("%10s: [%10i | %10i]\n", buffer, eventInd, nEventsMax);
         }
-//-----------
-        eventInd++;
-        if (eventInd < 55) continue;
-//----------
-// lets test something..
-
-// AWESOME AS FUCK this seems to work. It seems I can use the parentghost top barcode to match reoc jets to truth objects where the truth objects are then in the truth container.
-// This way I would need to check which jets have the same top barcode and should get my triplets. Let's do this.
-
-        // The triplet map give me a match between all reco jets and the truth tops. Now we can do two things:
-        // TODO: 1. flag the event if we don't have 4 entries in the map for the 4 tops
-        // TODO: 2. flag the top that is leptonic as that one has only 1 jet in the list (the b jet).
-
 
         std::map<int, TLorentzVector> truthTopMap {};
         for (auto& pair: truth_tripletMap) {
@@ -951,6 +951,26 @@ int test(std::string config_path) {
                                 } else std::cerr << "Unusual amount of matching children: " << pair.second.size() << std::endl;
             }
 
+
+        ClearAndResize<float>(klf_tops_pt, 4, -99);
+        ClearAndResize<float>(klf_tops_eta,4, -99);
+        ClearAndResize<float>(klf_tops_phi ,4, -99);
+        ClearAndResize<float>(klf_tops_e ,4, -99);
+        ClearAndResize<char>(klf_tops_matchesTruthTop ,4, static_cast<char>(false));
+        ClearAndResize<int>(klf_tops_matchedTruthTopOrigInd , 4, -99);
+        ClearAndResize<int>(klf_tops_recoJetInds_0 ,4, -99);
+        ClearAndResize<int>(klf_tops_recoJetInds_1 ,4, -99);
+        ClearAndResize<int>(klf_tops_recoJetInds_2 ,4, -99);
+
+        ClearAndResize<float>(klf_matchedTruth_tops_pt , 4, -99);
+        ClearAndResize<float>(klf_matchedTruth_tops_eta, 4, -99);
+        ClearAndResize<float>(klf_matchedTruth_tops_phi , 4, -99);
+        ClearAndResize<float>(klf_matchedTruth_tops_e , 4, -99);
+
+        ClearAndResize<float>(klf_reco_tops_pt ,4, -99);
+        ClearAndResize<float>(klf_reco_tops_eta,4, -99);
+        ClearAndResize<float>(klf_reco_tops_phi ,4, -99);
+        ClearAndResize<float>(klf_reco_tops_e ,4, -99);
 
 
         cp_el_pt = *el_pt;
@@ -1489,7 +1509,222 @@ int test(std::string config_path) {
 
 
         klf_NCorrectlyMatchedTops = klf_truthKLFMap.size();
-        klf_leptonicTopMatched = (KLFLepBIndex == TrueLepBIndex);
+        klf_leptonicTopMatched = static_cast<char>(KLFLepBIndex == TrueLepBIndex);
+
+        /*****************
+         * Add KLF tops in KLF order.
+         */
+        TLorentzVector t1, t1_1, t1_2, t1_3 = {};
+        t1_1.SetPtEtaPhiE(
+                klf_bhad1_pt.at(klf_highest_prob_index),
+                klf_bhad1_eta.at(klf_highest_prob_index),
+                klf_bhad1_phi.at(klf_highest_prob_index),
+                klf_bhad1_e.at(klf_highest_prob_index)
+        );
+
+        t1_2.SetPtEtaPhiE(
+                klf_lquark1_pt.at(klf_highest_prob_index),
+                klf_lquark1_eta.at(klf_highest_prob_index),
+                klf_lquark1_phi.at(klf_highest_prob_index),
+                klf_lquark1_e.at(klf_highest_prob_index)
+        );
+
+        t1_3.SetPtEtaPhiE(
+                klf_lquark2_pt.at(klf_highest_prob_index),
+                klf_lquark2_eta.at(klf_highest_prob_index),
+                klf_lquark2_phi.at(klf_highest_prob_index),
+                klf_lquark2_e.at(klf_highest_prob_index)
+        );
+
+        t1 = t1_1 + t1_2 + t1_3;
+
+        TLorentzVector t2, t2_1, t2_2, t2_3 = {};
+        t2_1.SetPtEtaPhiE(
+                klf_bhad2_pt.at(klf_highest_prob_index),
+                klf_bhad2_eta.at(klf_highest_prob_index),
+                klf_bhad2_phi.at(klf_highest_prob_index),
+                klf_bhad2_e.at(klf_highest_prob_index)
+        );
+
+        t2_2.SetPtEtaPhiE(
+                klf_lquark3_pt.at(klf_highest_prob_index),
+                klf_lquark3_eta.at(klf_highest_prob_index),
+                klf_lquark3_phi.at(klf_highest_prob_index),
+                klf_lquark3_e.at(klf_highest_prob_index)
+        );
+
+        t2_3.SetPtEtaPhiE(
+                klf_lquark4_pt.at(klf_highest_prob_index),
+                klf_lquark4_eta.at(klf_highest_prob_index),
+                klf_lquark4_phi.at(klf_highest_prob_index),
+                klf_lquark4_e.at(klf_highest_prob_index)
+        );
+
+        t2 = t2_1 + t2_2 + t2_3;
+
+        TLorentzVector t3, t3_1, t3_2, t3_3 = {};
+        t3_1.SetPtEtaPhiE(
+                klf_bhad3_pt.at(klf_highest_prob_index),
+                klf_bhad3_eta.at(klf_highest_prob_index),
+                klf_bhad3_phi.at(klf_highest_prob_index),
+                klf_bhad3_e.at(klf_highest_prob_index)
+        );
+
+        t3_2.SetPtEtaPhiE(
+                klf_lquark5_pt.at(klf_highest_prob_index),
+                klf_lquark5_eta.at(klf_highest_prob_index),
+                klf_lquark5_phi.at(klf_highest_prob_index),
+                klf_lquark5_e.at(klf_highest_prob_index)
+        );
+
+        t3_3.SetPtEtaPhiE(
+                klf_lquark6_pt.at(klf_highest_prob_index),
+                klf_lquark6_eta.at(klf_highest_prob_index),
+                klf_lquark6_phi.at(klf_highest_prob_index),
+                klf_lquark6_e.at(klf_highest_prob_index)
+        );
+
+        t3 = t3_1 + t3_2 + t3_3;
+
+        TLorentzVector t4, t4_1, t4_2, t4_3 = {};
+        t4_1.SetPtEtaPhiE(
+               klf_blep_pt.at(klf_highest_prob_index),
+               klf_blep_eta.at(klf_highest_prob_index),
+               klf_blep_phi.at(klf_highest_prob_index),
+               klf_blep_e.at(klf_highest_prob_index)
+        );
+
+        t4_2.SetPtEtaPhiE(
+                klf_lepton_pt.at(klf_highest_prob_index),
+                klf_lepton_eta.at(klf_highest_prob_index),
+                klf_lepton_phi.at(klf_highest_prob_index),
+                klf_lepton_e.at(klf_highest_prob_index)
+        );
+
+        t4_3.SetPtEtaPhiE(
+                klf_neutrino_pt.at(klf_highest_prob_index),
+                klf_neutrino_eta.at(klf_highest_prob_index),
+                klf_neutrino_phi.at(klf_highest_prob_index),
+                klf_neutrino_e.at(klf_highest_prob_index)
+        );
+
+        t4 = t4_1 + t4_2 + t4_3;
+
+        // Leptonic top not available at reco due to MET.
+        std::vector<TLorentzVector> klfTops = {t1, t2, t3, t4};
+        for (size_t ind =0 ; ind<4; ind++) {
+            klf_tops_pt.at(ind) = klfTops.at(ind).Pt();
+            klf_tops_eta.at(ind) = klfTops.at(ind).Eta();
+            klf_tops_phi.at(ind) = klfTops.at(ind).Phi();
+            klf_tops_e.at(ind) = klfTops.at(ind).E();
+        }
+
+
+        // What do I have:
+        // - jet reco
+        // - first and parentghosts to jet reco
+        // - truth tops (and jets)
+        // - klf correct permutation and tops
+
+        // I want to match:
+        // - Reco to KLF (and thus klf to first and parentghost)
+        //      - This is given by the model particles and the jet_index variable.
+        // - KLF to truth tops
+        //      -> make a truth four top collection and add references between the klf and the truth top collection just as for the reco case
+        // - firstghost to truth tops to show how bad we are.
+
+
+
+
+        for (size_t klfInd = 0; klfInd < klf_KLFtriplets.size(); klfInd++) {
+            auto &triplet = klf_KLFtriplets.at(klfInd);
+            if (triplet.size() == 3) {
+                klf_tops_recoJetInds_0.at(klfInd) = triplet.at(0);
+                klf_tops_recoJetInds_1.at(klfInd) = triplet.at(1);
+                klf_tops_recoJetInds_2.at(klfInd) = triplet.at(2);
+            
+                TLorentzVector tReco, tReco1, tReco2, tReco3 = {};
+                tReco1.SetPtEtaPhiE(
+                        jet_pt->at(triplet.at(0)),
+                        jet_eta->at(triplet.at(0)),
+                        jet_phi->at(triplet.at(0)),
+                        jet_e->at(triplet.at(0))               
+                        );
+                tReco2.SetPtEtaPhiE(
+                        jet_pt->at(triplet.at(1)),
+                        jet_eta->at(triplet.at(1)),
+                        jet_phi->at(triplet.at(1)),
+                        jet_e->at(triplet.at(1))
+                );
+                tReco3.SetPtEtaPhiE(
+                        jet_pt->at(triplet.at(2)),
+                        jet_eta->at(triplet.at(2)),
+                        jet_phi->at(triplet.at(2)),
+                        jet_e->at(triplet.at(2))
+                );
+
+                tReco = tReco1 + tReco2 + tReco3;
+                
+                klf_reco_tops_pt.at(klfInd) = tReco.Pt();
+                klf_reco_tops_eta.at(klfInd) = tReco.Eta();
+                klf_reco_tops_phi.at(klfInd) = tReco.Phi();
+                klf_reco_tops_e.at(klfInd) = tReco.E();
+
+                // no leptonic reco top because of met.
+
+            } else if (triplet.size() == 1) {
+                klf_tops_recoJetInds_0.at(klfInd) =  triplet.at(0);
+            }
+
+            // go through KLFtruth map again and find out which barcode belongs to klfInd by comparing the triplets again. Then used the barcode to find the truth top index in truth_barcode which can then be used to build the truth top.
+            bool foundMatch = false;
+            for (auto& pair : klf_truthKLFMap) {
+                if (triplet == pair.second) { // we have a match
+                    foundMatch = true;
+                    auto searchResult = std::find_if(truth_barcode->begin(), truth_barcode->end(), [&pair] (int bar){
+                        return pair.first == bar;
+                    });
+                    int truthInd = -1;
+                    if (searchResult != truth_barcode->end()) {
+                        truthInd = std::distance(truth_barcode->begin(), searchResult);
+                    }
+
+                    if (truthInd == -1 || truthInd > truth_pt->size()) {
+                        std::cerr << "Did not find barcode in barcodes. This should never happen. ind: " << truthInd << " for barcode: " << pair.first << std::endl;
+                        continue;
+                    }
+
+                    TLorentzVector tTruth = {};
+                    tTruth.SetPtEtaPhiM(
+                            truth_pt->at(truthInd),
+                            truth_eta->at(truthInd),
+                            truth_phi->at(truthInd),
+                            truth_m->at(truthInd)
+                            );
+
+                    klf_matchedTruth_tops_pt.at(klfInd) = tTruth.Pt();
+                    klf_matchedTruth_tops_eta.at(klfInd) = tTruth.Eta();
+                    klf_matchedTruth_tops_phi.at(klfInd) = tTruth.Phi();
+                    klf_matchedTruth_tops_e.at(klfInd) = tTruth.E();
+
+                    klf_tops_matchesTruthTop.at(klfInd) = static_cast<char>(true);
+                    klf_tops_matchedTruthTopOrigInd.at(klfInd) = truthInd; // I'm an idiot and should have base everything around that index instead of barcode.
+                }
+            }
+
+            if (!foundMatch) {
+                std::cerr << "nop" << std::endl;
+            }
+            
+            
+
+        }
+
+
+
+
+
+
 
 
         eventInd++;
@@ -1519,3 +1754,6 @@ int main(int argc, char *argv[]) {
     return test(config_path);
     // return EXIT::SUCCES;
 }
+
+
+

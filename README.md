@@ -110,3 +110,7 @@ make -j all && make -j install
 
 to compile KLFitter. The latter command will create a subdirectory _build_ and
 copy the header and library files into that directory for external usage.
+
+--------
+
+It might be necessary to rerun the creation of the root dictionary to store std:vector<TLorentzVector> in the TTrees.
