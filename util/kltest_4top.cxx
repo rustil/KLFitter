@@ -1476,8 +1476,14 @@ int test(std::string config_path) {
 
             klf_KLFtriplets.emplace_back(vec);
         }
+
         // Compare leptonic b index
         int KLFLepBIndex = recoBIndices.at(KLFBIndices.at(KLFBIndices.size()-1));
+
+        // Add Leptonic bjet to 'triplets'
+        std::vector<int> lepTriplet = {KLFLepBIndex};
+        klf_KLFtriplets.emplace_back(lepTriplet);
+
         int TrueLepBIndex = -1;
 //        true leptonic b
         for (auto& pair : truth_tripletMap) {
@@ -1677,10 +1683,10 @@ int test(std::string config_path) {
             }
 
             // go through KLFtruth map again and find out which barcode belongs to klfInd by comparing the triplets again. Then used the barcode to find the truth top index in truth_barcode which can then be used to build the truth top.
-            bool foundMatch = false;
+//            bool foundMatch = false;
             for (auto& pair : klf_truthKLFMap) {
                 if (triplet == pair.second) { // we have a match
-                    foundMatch = true;
+//                    foundMatch = true;
                     auto searchResult = std::find_if(truth_barcode->begin(), truth_barcode->end(), [&pair] (int bar){
                         return pair.first == bar;
                     });
@@ -1712,19 +1718,11 @@ int test(std::string config_path) {
                 }
             }
 
-            if (!foundMatch) {
-                std::cerr << "nop" << std::endl;
-            }
-            
-            
+//            if (!foundMatch) {
+//                std::cerr << "nop" << std::endl;
+//            }
 
         }
-
-
-
-
-
-
 
 
         eventInd++;
