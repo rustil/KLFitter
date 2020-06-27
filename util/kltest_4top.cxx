@@ -308,14 +308,28 @@ int test(std::string config_path) {
     TFile outFile(outFilePath.c_str(), "RECREATE");
 //    TTree* outTree = (TTree*)inFile->Get("nominal_Loose")->Clone();
     TTree outTree("nominal", "nominal");
-    TH1F cutFlow("CutFlow", "CutFlow", 7,0,7);
+    TH1F cutFlow("CutFlow", "CutFlow", 8,0,8);
+    cutFlow.Sumw2();
+    TH1F cutFlowWeighted("CutFlowWeighted", "CutFlowWeighted", 8,0,8);
+    cutFlowWeighted.Sumw2();
+
     cutFlow.GetXaxis()->SetBinLabel(1, "PreSel");
     cutFlow.GetXaxis()->SetBinLabel(2, "nLep == 1");
-    cutFlow.GetXaxis()->SetBinLabel(3, "nJets == 10");
-    cutFlow.GetXaxis()->SetBinLabel(4, "nBJets == 4");
-    cutFlow.GetXaxis()->SetBinLabel(5, "4 truth tops matched");
-    cutFlow.GetXaxis()->SetBinLabel(6, "10 reco jets matched");
-    cutFlow.GetXaxis()->SetBinLabel(7, "triplet sizes == 301");
+    cutFlow.GetXaxis()->SetBinLabel(3, "ljets Selection");
+    cutFlow.GetXaxis()->SetBinLabel(4, "nJets == 10");
+    cutFlow.GetXaxis()->SetBinLabel(5, "nBJets == 4");
+    cutFlow.GetXaxis()->SetBinLabel(6, "4 truth tops matched");
+    cutFlow.GetXaxis()->SetBinLabel(7, "10 reco jets matched");
+    cutFlow.GetXaxis()->SetBinLabel(8, "triplet sizes == 301");
+
+    cutFlowWeighted.GetXaxis()->SetBinLabel(1, "PreSel");
+    cutFlowWeighted.GetXaxis()->SetBinLabel(2, "nLep == 1");
+    cutFlowWeighted.GetXaxis()->SetBinLabel(3, "ljets Selection");
+    cutFlowWeighted.GetXaxis()->SetBinLabel(4, "nJets == 10");
+    cutFlowWeighted.GetXaxis()->SetBinLabel(5, "nBJets == 4");
+    cutFlowWeighted.GetXaxis()->SetBinLabel(6, "4 truth tops matched");
+    cutFlowWeighted.GetXaxis()->SetBinLabel(7, "10 reco jets matched");
+    cutFlowWeighted.GetXaxis()->SetBinLabel(8, "triplet sizes == 301");
 
     int evt_NTruthTopMatches;
     int evt_NTruthMatchedJets;
@@ -348,7 +362,21 @@ int test(std::string config_path) {
     std::vector<float> klf_reco_tops_eta;
     std::vector<float> klf_reco_tops_phi;
     std::vector<float> klf_reco_tops_e;
-    
+
+    std::vector<float> klf_firstghost_tops_pt;
+    std::vector<float> klf_firstghost_tops_eta;
+    std::vector<float> klf_firstghost_tops_phi;
+    std::vector<float> klf_firstghost_tops_e;
+
+    std::vector<float> truth_firstghost_tops_pt;
+    std::vector<float> truth_firstghost_tops_eta;
+    std::vector<float> truth_firstghost_tops_phi;
+    std::vector<float> truth_firstghost_tops_e;
+
+    std::vector<float> truth_hadronic_tops_pt;
+    std::vector<float> truth_hadronic_tops_eta;
+    std::vector<float> truth_hadronic_tops_phi;
+    std::vector<float> truth_hadronic_tops_e;
     
 
     std::vector<float> cp_el_pt;
@@ -582,10 +610,20 @@ int test(std::string config_path) {
     outTree.Branch("klf_reco_tops_phi", &klf_reco_tops_phi);
     outTree.Branch("klf_reco_tops_e", &klf_reco_tops_e);
 
-//    outTree.Branch("truth_tripletMap", &truth_tripletMap, 32000, 0);
-//    outTree.Branch("truth_recoTopTruePermMap", &truth_recoTopTruePermMap, 32000, 0);
-//    outTree.Branch("klf_KLFtriplets", &klf_KLFtriplets, 32000, 0);
-//    outTree.Branch("klf_truthKLFMap", &klf_truthKLFMap, 32000, 0);
+    outTree.Branch("klf_firstghost_tops_pt", &klf_firstghost_tops_pt);
+    outTree.Branch("klf_firstghost_tops_eta", &klf_firstghost_tops_eta);
+    outTree.Branch("klf_firstghost_tops_phi", &klf_firstghost_tops_phi);
+    outTree.Branch("klf_firstghost_tops_e", &klf_firstghost_tops_e);
+
+    outTree.Branch("truth_firstghost_tops_pt", &truth_firstghost_tops_pt);
+    outTree.Branch("truth_firstghost_tops_eta", &truth_firstghost_tops_eta);
+    outTree.Branch("truth_firstghost_tops_phi", &truth_firstghost_tops_phi);
+    outTree.Branch("truth_firstghost_tops_e", &truth_firstghost_tops_e);
+
+    outTree.Branch("truth_hadronic_tops_pt", &truth_hadronic_tops_pt);
+    outTree.Branch("truth_hadronic_tops_eta", &truth_hadronic_tops_eta);
+    outTree.Branch("truth_hadronic_tops_phi", &truth_hadronic_tops_phi);
+    outTree.Branch("truth_hadronic_tops_e", &truth_hadronic_tops_e);
 
     outTree.Branch("klf_bhad1_pt", &klf_bhad1_pt);
     outTree.Branch("klf_bhad1_eta", &klf_bhad1_eta);
@@ -842,14 +880,32 @@ int test(std::string config_path) {
 
         // CUTS
         cutFlow.Fill(0);
+        float weight = *weight_jvt * *weight_pileup * *weight_leptonSF * *weight_mc * *weight_bTagSF_MV2c10_77;
+        cutFlowWeighted.Fill(0., weight);
+
         if(nLep != 1) continue;
-        else cutFlow.Fill(1);
+        else {
+            cutFlow.Fill(1);
+            cutFlowWeighted.Fill(1, weight);
+        }
+
+        if (!(*ejets_MV2c10 || *mujets_MV2c10)) continue;
+        else {
+            cutFlow.Fill(2);
+            cutFlowWeighted.Fill(2, weight);
+        }
 
         if (jet_pt->size() != 10) continue;
-        else cutFlow.Fill(2);
+        else {
+            cutFlow.Fill(3);
+            cutFlowWeighted.Fill(3, weight);
+        }
 
         if (nBJets != 4) continue;
-        else cutFlow.Fill(3);
+        else {
+            cutFlow.Fill(4);
+            cutFlowWeighted.Fill(4, weight);
+        }
 
 
         for (int k =0 ; k < jet_parentghost_top_barcode->size(); k++) {
@@ -871,11 +927,17 @@ int test(std::string config_path) {
         // CUT
         if (truth_tripletMap.size() !=4) {
             continue;
-        } else cutFlow.Fill(4);
+        } else {
+            cutFlow.Fill(5);
+            cutFlowWeighted.Fill(5, weight);
+        }
 
         if (evt_NTruthMatchedJets != nPartonsToBeMatched) {
             continue;
-        } else cutFlow.Fill(5);
+        } else {
+            cutFlow.Fill(6);
+            cutFlowWeighted.Fill(6, weight);
+        }
 
 
         int tripletSizes = 0; // nTriplet *  100 + nDuplet * 10 +  nSinglet = 301 for 1LOS tree level FS. (3 tops with three jets and 1 w/ one)
@@ -889,7 +951,10 @@ int test(std::string config_path) {
         // CUT
         if (tripletSizes != 301) {
             continue;
-        } else cutFlow.Fill(6);
+        } else {
+            cutFlow.Fill(7);
+            cutFlowWeighted.Fill(7, weight);
+        }
 
 
         KLFitter::Particles particles{};
@@ -972,7 +1037,21 @@ int test(std::string config_path) {
         ClearAndResize<float>(klf_reco_tops_phi ,4, -99);
         ClearAndResize<float>(klf_reco_tops_e ,4, -99);
 
+        ClearAndResize<float>(klf_firstghost_tops_pt ,4, -99);
+        ClearAndResize<float>(klf_firstghost_tops_eta,4, -99);
+        ClearAndResize<float>(klf_firstghost_tops_phi ,4, -99);
+        ClearAndResize<float>(klf_firstghost_tops_e ,4, -99);
 
+        ClearAndResize<float>(truth_firstghost_tops_pt ,3, -99);
+        ClearAndResize<float>(truth_firstghost_tops_eta,3, -99);
+        ClearAndResize<float>(truth_firstghost_tops_phi ,3, -99);
+        ClearAndResize<float>(truth_firstghost_tops_e ,3, -99);
+
+        ClearAndResize<float>(truth_hadronic_tops_pt ,3, -99);
+        ClearAndResize<float>(truth_hadronic_tops_eta,3, -99);
+        ClearAndResize<float>(truth_hadronic_tops_phi ,3, -99);
+        ClearAndResize<float>(truth_hadronic_tops_e ,3, -99);
+        
         cp_el_pt = *el_pt;
         cp_el_eta = *el_eta;
         cp_el_phi = *el_phi;
@@ -1676,10 +1755,38 @@ int test(std::string config_path) {
                 klf_reco_tops_phi.at(klfInd) = tReco.Phi();
                 klf_reco_tops_e.at(klfInd) = tReco.E();
 
-                // no leptonic reco top because of met.
+                TLorentzVector tFirstghost, tFirstghost1, tFirstghost2, tFirstghost3 = {};
+                tFirstghost1.SetPtEtaPhiE(
+                        jet_firstghost_pt->at(triplet.at(0)),
+                        jet_firstghost_eta->at(triplet.at(0)),
+                        jet_firstghost_phi->at(triplet.at(0)),
+                        jet_firstghost_e->at(triplet.at(0))
+                );
+                tFirstghost2.SetPtEtaPhiE(
+                        jet_firstghost_pt->at(triplet.at(1)),
+                        jet_firstghost_eta->at(triplet.at(1)),
+                        jet_firstghost_phi->at(triplet.at(1)),
+                        jet_firstghost_e->at(triplet.at(1))
+                );
+                tFirstghost3.SetPtEtaPhiE(
+                        jet_firstghost_pt->at(triplet.at(2)),
+                        jet_firstghost_eta->at(triplet.at(2)),
+                        jet_firstghost_phi->at(triplet.at(2)),
+                        jet_firstghost_e->at(triplet.at(2))
+                );
+
+                tFirstghost = tFirstghost1 + tFirstghost2 + tFirstghost3;
+
+                klf_firstghost_tops_pt.at(klfInd) = tFirstghost.Pt();
+                klf_firstghost_tops_eta.at(klfInd) = tFirstghost.Eta();
+                klf_firstghost_tops_phi.at(klfInd) = tFirstghost.Phi();
+                klf_firstghost_tops_e.at(klfInd) = tFirstghost.E();
+
+                // no leptonic reco top because of met. Also true for true.. don't have true met for whatever reason :(.
 
             } else if (triplet.size() == 1) {
                 klf_tops_recoJetInds_0.at(klfInd) =  triplet.at(0);
+
             }
 
             // go through KLFtruth map again and find out which barcode belongs to klfInd by comparing the triplets again. Then used the barcode to find the truth top index in truth_barcode which can then be used to build the truth top.
@@ -1718,11 +1825,49 @@ int test(std::string config_path) {
                 }
             }
 
-//            if (!foundMatch) {
-//                std::cerr << "nop" << std::endl;
-//            }
+        }
+
+        // Go through all truth tops and match them to firstghosts
+        int l = 0;
+        for (auto& pair : truth_tripletMap) {
+            if (pair.second.size() != 3 || l < 0 || l > 2) continue;
+
+            TLorentzVector ghost;
+            int jetc = 0;
+            for (int jeti : pair.second) {
+                TLorentzVector ghostFS = {};
+                ghostFS.SetPtEtaPhiE(
+                        jet_firstghost_pt->at(jeti),
+                        jet_firstghost_eta->at(jeti),
+                        jet_firstghost_phi->at(jeti),
+                        jet_firstghost_e->at(jeti)
+                        );
+                if (jetc == 0) ghost = ghostFS;
+                else ghost += ghostFS;
+
+                jetc++;
+            }
+
+            truth_firstghost_tops_pt.at(l) = ghost.Pt();
+            truth_firstghost_tops_eta.at(l) = ghost.Eta();
+            truth_firstghost_tops_phi.at(l) = ghost.Phi();
+            truth_firstghost_tops_e.at(l) = ghost.E();
+
+            if ( truthTopMap.find(pair.first) != truthTopMap.end() ) {
+
+                truth_hadronic_tops_pt.at(l) = truthTopMap[pair.first].Pt();
+                truth_hadronic_tops_eta.at(l) = truthTopMap[pair.first].Eta();
+                truth_hadronic_tops_phi.at(l) = truthTopMap[pair.first].Phi();
+                truth_hadronic_tops_e.at(l) = truthTopMap[pair.first].E();
+            }
+            
+            l++;
+
+
 
         }
+
+
 
 
         eventInd++;
@@ -1734,6 +1879,7 @@ int test(std::string config_path) {
     outFile.cd();
     std::cout << std::endl << "Writing into output root file: " << outFilePath << std::endl << std::endl;
     cutFlow.Write();
+    cutFlowWeighted.Write();
     outTree.Write();
 
     // Close both input and output ROOT files.
